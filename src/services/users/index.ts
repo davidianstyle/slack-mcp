@@ -10,7 +10,7 @@ export function registerUsersTools(
   const api = () => ctx.client;
 
   server.tool(
-    "users_search",
+    "slack_users_search",
     "Search for users by name, email, or display name",
     {
       query: z.string().describe("Search query (name, email, or display name)"),

@@ -10,7 +10,7 @@ export function registerConversationsTools(
   const api = () => ctx.client;
 
   server.tool(
-    "conversations_history",
+    "slack_conversations_history",
     "Get recent messages from a channel or DM",
     {
       channel_id: z.string().describe("Channel or DM ID"),
@@ -49,7 +49,7 @@ export function registerConversationsTools(
   );
 
   server.tool(
-    "conversations_replies",
+    "slack_conversations_replies",
     "Get replies in a message thread",
     {
       channel_id: z.string().describe("Channel ID containing the thread"),
@@ -73,7 +73,7 @@ export function registerConversationsTools(
   );
 
   server.tool(
-    "conversations_add_message",
+    "slack_conversations_add_message",
     "Post a message to a channel or thread",
     {
       channel_id: z.string().describe("Channel ID to post to"),
@@ -99,7 +99,7 @@ export function registerConversationsTools(
   );
 
   server.tool(
-    "conversations_search_messages",
+    "slack_conversations_search_messages",
     "Search messages across the workspace",
     {
       query: z.string().describe("Search query (supports Slack search syntax)"),
@@ -130,7 +130,7 @@ export function registerConversationsTools(
   );
 
   server.tool(
-    "conversations_unreads",
+    "slack_conversations_unreads",
     "Get channels and DMs with unread messages",
     {
       types: z
@@ -177,7 +177,7 @@ export function registerConversationsTools(
   );
 
   server.tool(
-    "conversations_mark",
+    "slack_conversations_mark",
     "Mark a channel or DM as read up to a given timestamp",
     {
       channel_id: z.string().describe("Channel ID to mark"),

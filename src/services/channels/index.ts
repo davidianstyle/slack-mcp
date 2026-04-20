@@ -10,7 +10,7 @@ export function registerChannelsTools(
   const api = () => ctx.client;
 
   server.tool(
-    "channels_list",
+    "slack_channels_list",
     "List channels in the workspace",
     {
       types: z

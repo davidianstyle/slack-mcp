@@ -10,7 +10,7 @@ export function registerUsergroupsTools(
   const api = () => ctx.client;
 
   server.tool(
-    "usergroups_list",
+    "slack_usergroups_list",
     "List user groups in the workspace",
     {
       include_users: z
@@ -44,7 +44,7 @@ export function registerUsergroupsTools(
   );
 
   server.tool(
-    "usergroups_create",
+    "slack_usergroups_create",
     "Create a new user group",
     {
       name: z.string().describe("Name of the user group"),
@@ -67,7 +67,7 @@ export function registerUsergroupsTools(
   );
 
   server.tool(
-    "usergroups_update",
+    "slack_usergroups_update",
     "Update a user group's metadata",
     {
       usergroup_id: z.string().describe("User group ID to update"),
@@ -92,7 +92,7 @@ export function registerUsergroupsTools(
   );
 
   server.tool(
-    "usergroups_users_update",
+    "slack_usergroups_users_update",
     "Replace all members of a user group",
     {
       usergroup_id: z.string().describe("User group ID"),
@@ -110,7 +110,7 @@ export function registerUsergroupsTools(
   );
 
   server.tool(
-    "usergroups_me",
+    "slack_usergroups_me",
     "List user groups the authenticated user belongs to, or join/leave a group",
     {
       action: z
