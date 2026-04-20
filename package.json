@@ -1,0 +1,30 @@
+{
+  "name": "slack-mcp",
+  "version": "0.1.0",
+  "description": "Slack MCP server for Claude Code — channels, messages, users, and usergroups via xoxp tokens.",
+  "type": "module",
+  "bin": {
+    "slack-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": ["mcp", "slack", "channels", "messages", "usergroups"],
+  "author": "David Chang",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@slack/web-api": "^7.9.1",
+    "commander": "^14.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
+  }
+}
