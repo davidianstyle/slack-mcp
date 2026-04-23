@@ -116,7 +116,8 @@ export function registerConversationsTools(
         ok: res.ok,
         channel: res.channel,
         ts: res.ts,
-        text: res.text,
+        message: res.message,
+        error: res.error,
       });
     }
   );
@@ -216,8 +217,9 @@ export function registerConversationsTools(
       });
       return textResult({
         ok: res.ok,
-        channel: res.channel,
+        channel: res.channel?.id,
         already_open: res.already_open,
+        error: res.error,
       });
     }
   );
