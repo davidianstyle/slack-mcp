@@ -99,6 +99,29 @@ export function registerConversationsTools(
   );
 
   server.tool(
+    "slack_conversations_edit_message",
+    "Edit a previously sent message",
+    {
+      channel_id: z.string().describe("Channel ID containing the message"),
+      ts: z.string().describe("Timestamp of the message to edit"),
+      text: z.string().describe("New message text (supports Slack mrkdwn)"),
+    },
+    async ({ channel_id, ts, text }) => {
+      const res = await api().chat.update({
+        channel: channel_id,
+        ts,
+        text,
+      });
+      return textResult({
+        ok: res.ok,
+        channel: res.channel,
+        ts: res.ts,
+        text: res.text,
+      });
+    }
+  );
+
+  server.tool(
     "slack_conversations_search_messages",
     "Search messages across the workspace",
     {
@@ -173,6 +196,29 @@ export function registerConversationsTools(
       return textResult(
         unreads.sort((a, b) => b.unread_count - a.unread_count)
       );
+    }
+  );
+
+  server.tool(
+    "slack_conversations_open",
+    "Open or resume a direct message or multi-party DM. Returns the channel ID for messaging.",
+    {
+      users: z
+        .string()
+        .describe(
+          "Comma-separated list of user IDs (1 for DM, 2+ for group DM)"
+        ),
+    },
+    async ({ users }) => {
+      const res = await api().conversations.open({
+        users,
+        return_im: true,
+      });
+      return textResult({
+        ok: res.ok,
+        channel: res.channel,
+        already_open: res.already_open,
+      });
     }
   );
 
