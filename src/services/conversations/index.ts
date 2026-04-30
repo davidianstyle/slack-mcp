@@ -201,6 +201,49 @@ export function registerConversationsTools(
   );
 
   server.tool(
+    "slack_my_mentions",
+    "Find recent messages that mention the authenticated user (works across channel top-level posts and thread replies, regardless of read state). Use this to catch @mentions that slack_conversations_unreads misses — that tool only returns channels with top-level unreads, so it skips thread mentions and mentions in already-read channels.",
+    {
+      hours: z
+        .number()
+        .optional()
+        .default(24)
+        .describe("Look back this many hours (used to compute the search 'after:' date filter)"),
+      count: z
+        .number()
+        .optional()
+        .default(20)
+        .describe("Max results to return"),
+    },
+    async ({ hours, count }) => {
+      const auth = await api().auth.test();
+      const userId = auth.user_id;
+      if (!userId) {
+        return textResult({ error: "Could not determine authenticated user ID from auth.test()" });
+      }
+
+      // Slack search 'after:' takes YYYY-MM-DD. Compute the date floor from `hours` ago.
+      const floorMs = Date.now() - hours * 3600 * 1000;
+      const after = new Date(floorMs).toISOString().slice(0, 10);
+      const query = `<@${userId}> after:${after}`;
+
+      const res = await api().search.messages({
+        query,
+        count,
+        sort: "timestamp",
+        sort_dir: "desc",
+      });
+
+      return textResult({
+        user_id: userId,
+        query,
+        total: res.messages?.total,
+        matches: res.messages?.matches,
+      });
+    }
+  );
+
+  server.tool(
     "slack_conversations_open",
     "Open or resume a direct message or multi-party DM. Returns the channel ID for messaging.",
     {
