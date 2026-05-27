@@ -19,7 +19,7 @@ const shutdown = (): never => process.exit(0);
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-const client = loadAuth(opts.slug);
-const server = createServer({ client });
+const auth = loadAuth(opts.slug);
+const server = createServer(auth);
 const transport = new StdioServerTransport();
 await server.connect(transport);
