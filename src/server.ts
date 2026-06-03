@@ -5,6 +5,7 @@ import { registerChannelsTools } from "./services/channels/index.js";
 import { registerUsersTools } from "./services/users/index.js";
 import { registerUsergroupsTools } from "./services/usergroups/index.js";
 import { registerDraftsTools } from "./services/drafts/index.js";
+import { registerReactionsTools } from "./services/reactions/index.js";
 
 export function createServer(ctx: ServiceContext): McpServer {
   const server = new McpServer({
@@ -17,6 +18,7 @@ export function createServer(ctx: ServiceContext): McpServer {
   registerUsersTools(server, ctx);
   registerUsergroupsTools(server, ctx);
   registerDraftsTools(server, ctx);
+  registerReactionsTools(server, ctx);
 
   return server;
 }
