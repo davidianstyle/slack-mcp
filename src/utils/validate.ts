@@ -65,3 +65,53 @@ export function clampLimit(value: number, opts: ClampLimitOptions): number {
   }
   return Math.min(Math.max(value, min), max);
 }
+
+const COMMON_BLOCK_TYPES = [
+  "section",
+  "divider",
+  "image",
+  "header",
+  "context",
+  "actions",
+  "rich_text",
+  "input",
+];
+
+const BLOCK_TYPES_HINT = `Common block types: ${COMMON_BLOCK_TYPES.join(", ")}. See https://api.slack.com/reference/block-kit/blocks.`;
+
+// Parses the `blocks` tool param (a JSON string, since MCP tool params are
+// flat/scalar) into the array of block objects the Slack Web API expects.
+// Only checks the outer shape (a JSON array of objects each with a string
+// `type`) — full per-block-type schema validation is left to Slack's API,
+// whose error responses already come back through the error mapper.
+export function parseBlocksJson(json: string): Record<string, unknown>[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new ValidationError(
+      `blocks must be valid JSON — a JSON array of Block Kit block objects. ${BLOCK_TYPES_HINT}`
+    );
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new ValidationError(
+      `blocks must be a JSON array of block objects, got ${typeof parsed}. ${BLOCK_TYPES_HINT}`
+    );
+  }
+
+  parsed.forEach((block, i) => {
+    if (typeof block !== "object" || block === null || Array.isArray(block)) {
+      throw new ValidationError(
+        `blocks[${i}] must be an object, got ${block === null ? "null" : typeof block}. ${BLOCK_TYPES_HINT}`
+      );
+    }
+    if (typeof (block as Record<string, unknown>).type !== "string") {
+      throw new ValidationError(
+        `blocks[${i}] is missing a string "type" field. ${BLOCK_TYPES_HINT}`
+      );
+    }
+  });
+
+  return parsed as Record<string, unknown>[];
+}

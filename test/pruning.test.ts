@@ -111,6 +111,46 @@ describe("pruneDraft", () => {
     expect(pruned.text).toBeUndefined();
   });
 
+  it("flattens a rich_text_list into one line per item", () => {
+    const raw = {
+      id: "draft-list",
+      blocks: [
+        {
+          type: "rich_text",
+          elements: [
+            {
+              type: "rich_text_list",
+              style: "bullet",
+              elements: [
+                { type: "rich_text_section", elements: [{ type: "text", text: "one" }] },
+                { type: "rich_text_section", elements: [{ type: "text", text: "two" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(pruneDraft(raw).text).toBe("one\ntwo");
+  });
+
+  it("flattens rich_text_quote and rich_text_preformatted content", () => {
+    const raw = {
+      id: "draft-mixed",
+      blocks: [
+        {
+          type: "rich_text",
+          elements: [
+            { type: "rich_text_quote", elements: [{ type: "text", text: "quoted" }] },
+            { type: "rich_text_preformatted", elements: [{ type: "text", text: "code();" }] },
+          ],
+        },
+      ],
+    };
+
+    expect(pruneDraft(raw).text).toBe("quotedcode();");
+  });
+
   it("passes through a bare destinations object that isn't wrapped in an array", () => {
     const pruned = pruneDraft({ id: "draft-4", destinations: { channel_id: "C1" } });
     expect(pruned.destination).toEqual({ channel_id: "C1" });

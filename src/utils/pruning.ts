@@ -188,35 +188,52 @@ interface RichTextLeaf {
   range?: string;
 }
 
-interface RichTextSection {
+// A block-level entry inside a rich_text block's `elements` array — a
+// section (inline content), a list (nested sections, one per item), or a
+// quote/preformatted block (inline-leaf content directly, no nesting).
+// Structural subset of utils/mrkdwn.ts's own block element types, so this
+// module doesn't need to import that file's internal types.
+interface RichTextBlockElement {
   type?: string;
-  elements?: RichTextLeaf[];
+  elements?: Array<RichTextLeaf | RichTextBlockElement>;
 }
 
 interface RichTextBlock {
   type?: string;
-  elements?: RichTextSection[];
+  elements?: RichTextBlockElement[];
 }
 
 // Best-effort flatten of the rich_text block structure produced by
 // utils/mrkdwn.ts's mrkdwnToBlocks back into a plain-text preview. Styling
 // (bold/italic/code) is intentionally not reconstructed — this is a preview,
-// not a round-trip.
+// not a round-trip. Lists render one item per line; quotes and code fences
+// render as their inline text content.
 function blocksToText(blocks: unknown): string | undefined {
   if (!Array.isArray(blocks)) return undefined;
 
   const parts: string[] = [];
   for (const block of blocks as RichTextBlock[]) {
     if (block?.type !== "rich_text" || !Array.isArray(block.elements)) continue;
-    for (const section of block.elements) {
-      if (!Array.isArray(section?.elements)) continue;
-      for (const leaf of section.elements) {
-        parts.push(leafToText(leaf));
-      }
+    for (const element of block.elements) {
+      parts.push(blockElementToText(element));
     }
   }
 
   return parts.length > 0 ? parts.join("") : undefined;
+}
+
+function blockElementToText(element: RichTextBlockElement | undefined): string {
+  if (!element || !Array.isArray(element.elements)) return "";
+
+  if (element.type === "rich_text_list") {
+    return element.elements
+      .map((item) => blockElementToText(item as RichTextBlockElement))
+      .join("\n");
+  }
+
+  // rich_text_section, rich_text_quote, and rich_text_preformatted all hold
+  // inline leaves directly.
+  return (element.elements as RichTextLeaf[]).map(leafToText).join("");
 }
 
 function leafToText(leaf: RichTextLeaf): string {

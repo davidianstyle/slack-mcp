@@ -6,6 +6,19 @@ import { withErrorHandling } from "../../utils/errors.js";
 import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
 import { pruneMessages } from "../../utils/pruning.js";
 import { mapWithConcurrency } from "../../utils/concurrency.js";
+import { resolveMessageContent } from "../../utils/messageContent.js";
+
+const BLOCKS_DESCRIPTION =
+  "Block Kit blocks as a JSON string (an array of block objects), for rich message layout beyond " +
+  "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
+  "fallback (e.g. push notifications, thread list previews). Mutually exclusive with mrkdwn. " +
+  "See https://api.slack.com/reference/block-kit/blocks.";
+
+const MRKDWN_DESCRIPTION =
+  "Render text as Slack rich-text blocks (real bullet/ordered lists, block quotes, and fenced code " +
+  "blocks) using this server's local mrkdwn parser, instead of relying on Slack's plain-text mrkdwn " +
+  "rendering — which displays those constructs as literal characters (e.g. a '- item' line shows up " +
+  "as the literal text '- item', not an actual bullet). Mutually exclusive with blocks.";
 
 const INCLUDE_RAW_DESCRIPTION =
   "Return full, unpruned message objects instead of the compact default (ts, user, text, thread_ts, reply_count, reactions, subtype, file names). Use this if you need attachments, blocks, or other fields the compact form drops.";
@@ -108,14 +121,18 @@ export function registerConversationsTools(
         .string()
         .optional()
         .describe("Thread timestamp to reply to"),
+      blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
+      mrkdwn: z.boolean().optional().default(false).describe(MRKDWN_DESCRIPTION),
     },
-    withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts, blocks, mrkdwn }) => {
       validateChannelId(channel_id);
       if (thread_ts) validateTs(thread_ts, "thread_ts");
+      const content = resolveMessageContent({ text, blocks, mrkdwn });
       const res = await api().chat.postMessage({
         channel: channel_id,
-        text,
+        text: content.text,
         thread_ts,
+        ...(content.blocks ? { blocks: content.blocks } : {}),
       });
       return textResult({
         ok: res.ok,
@@ -133,14 +150,18 @@ export function registerConversationsTools(
       channel_id: z.string().describe("Channel ID containing the message"),
       ts: z.string().describe("Timestamp of the message to edit"),
       text: z.string().describe("New message text (supports Slack mrkdwn)"),
+      blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
+      mrkdwn: z.boolean().optional().default(false).describe(MRKDWN_DESCRIPTION),
     },
-    withErrorHandling(ctx.slug, async ({ channel_id, ts, text }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, ts, text, blocks, mrkdwn }) => {
       validateChannelId(channel_id);
       validateTs(ts);
+      const content = resolveMessageContent({ text, blocks, mrkdwn });
       const res = await api().chat.update({
         channel: channel_id,
         ts,
-        text,
+        text: content.text,
+        ...(content.blocks ? { blocks: content.blocks } : {}),
       });
       return textResult({
         ok: res.ok,

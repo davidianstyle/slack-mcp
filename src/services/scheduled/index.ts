@@ -5,6 +5,12 @@ import { textResult } from "../../utils/formatting.js";
 import { withErrorHandling } from "../../utils/errors.js";
 import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
 import { parsePostAt } from "../../utils/postAt.js";
+import { resolveMessageContent } from "../../utils/messageContent.js";
+
+const BLOCKS_DESCRIPTION =
+  "Block Kit blocks as a JSON string (an array of block objects), for rich message layout beyond " +
+  "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
+  "fallback. See https://api.slack.com/reference/block-kit/blocks.";
 
 export function registerScheduledTools(
   server: McpServer,
@@ -28,17 +34,20 @@ export function registerScheduledTools(
             "Must be in the future and no more than ~120 days out."
         ),
       thread_ts: z.string().optional().describe("Thread timestamp to schedule a reply to"),
+      blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
     },
-    withErrorHandling(ctx.slug, async ({ channel_id, text, post_at, thread_ts }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, text, post_at, thread_ts, blocks }) => {
       validateChannelId(channel_id);
       if (thread_ts) validateTs(thread_ts, "thread_ts");
       const epochSeconds = parsePostAt(post_at);
+      const content = resolveMessageContent({ text, blocks });
 
       const res = await api().chat.scheduleMessage({
         channel: channel_id,
-        text,
+        text: content.text,
         post_at: epochSeconds,
         thread_ts,
+        ...(content.blocks ? { blocks: content.blocks } : {}),
       });
 
       return textResult({

@@ -5,6 +5,7 @@ import {
   validateUserId,
   validateTs,
   clampLimit,
+  parseBlocksJson,
 } from "../src/utils/validate.js";
 
 describe("validateChannelId", () => {
@@ -122,5 +123,54 @@ describe("clampLimit", () => {
 
   it("defaults min to 1 when not provided", () => {
     expect(clampLimit(-5, { max: 200 })).toBe(1);
+  });
+});
+
+describe("parseBlocksJson", () => {
+  it("parses a well-formed Block Kit JSON array", () => {
+    const json = JSON.stringify([
+      { type: "section", text: { type: "mrkdwn", text: "hi" } },
+      { type: "divider" },
+    ]);
+    expect(parseBlocksJson(json)).toEqual([
+      { type: "section", text: { type: "mrkdwn", text: "hi" } },
+      { type: "divider" },
+    ]);
+  });
+
+  it("throws ValidationError with a helpful hint on invalid JSON", () => {
+    try {
+      parseBlocksJson("{not valid json");
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as Error).message).toMatch(/valid JSON/);
+      expect((err as Error).message).toMatch(/section/);
+    }
+  });
+
+  it("throws ValidationError when the parsed JSON isn't an array", () => {
+    try {
+      parseBlocksJson(JSON.stringify({ type: "section" }));
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as Error).message).toMatch(/array/);
+      expect((err as Error).message).toMatch(/section/);
+    }
+  });
+
+  it("throws ValidationError when an array element has no string type field", () => {
+    expect(() => parseBlocksJson(JSON.stringify([{ text: "no type" }]))).toThrow(
+      ValidationError
+    );
+    expect(() => parseBlocksJson(JSON.stringify(["not an object"]))).toThrow(
+      ValidationError
+    );
+    expect(() => parseBlocksJson(JSON.stringify([null]))).toThrow(ValidationError);
+  });
+
+  it("accepts an empty array", () => {
+    expect(parseBlocksJson("[]")).toEqual([]);
   });
 });
