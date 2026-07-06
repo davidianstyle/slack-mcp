@@ -2,6 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
+import { withErrorHandling } from "../../utils/errors.js";
+import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
+import { pruneMessages } from "../../utils/pruning.js";
+import { mapWithConcurrency } from "../../utils/concurrency.js";
+
+const INCLUDE_RAW_DESCRIPTION =
+  "Return full, unpruned message objects instead of the compact default (ts, user, text, thread_ts, reply_count, reactions, subtype, file names). Use this if you need attachments, blocks, or other fields the compact form drops.";
 
 export function registerConversationsTools(
   server: McpServer,
@@ -31,21 +38,28 @@ export function registerConversationsTools(
         .string()
         .optional()
         .describe("Only messages before this Unix timestamp"),
+      include_raw: z.boolean().optional().default(false).describe(INCLUDE_RAW_DESCRIPTION),
     },
-    async ({ channel_id, limit, cursor, oldest, latest }) => {
-      const res = await api().conversations.history({
-        channel: channel_id,
-        limit: Math.min(limit, 200),
-        cursor,
-        oldest,
-        latest,
-      });
-      return textResult({
-        messages: res.messages,
-        has_more: res.has_more,
-        next_cursor: res.response_metadata?.next_cursor,
-      });
-    }
+    withErrorHandling(
+      ctx.slug,
+      async ({ channel_id, limit, cursor, oldest, latest, include_raw }) => {
+        validateChannelId(channel_id);
+        const clampedLimit = clampLimit(limit, { max: 200, field: "limit" });
+        const res = await api().conversations.history({
+          channel: channel_id,
+          limit: clampedLimit,
+          cursor,
+          oldest,
+          latest,
+        });
+        const messages = res.messages ?? [];
+        return textResult({
+          messages: include_raw ? messages : pruneMessages(messages),
+          has_more: res.has_more,
+          next_cursor: res.response_metadata?.next_cursor,
+        });
+      }
+    )
   );
 
   server.tool(
@@ -54,22 +68,34 @@ export function registerConversationsTools(
     {
       channel_id: z.string().describe("Channel ID containing the thread"),
       thread_ts: z.string().describe("Timestamp of the parent message"),
-      limit: z.number().optional().default(50).describe("Max replies to return"),
+      limit: z
+        .number()
+        .optional()
+        .default(50)
+        .describe("Max replies to return (max 200)"),
       cursor: z.string().optional().describe("Pagination cursor"),
+      include_raw: z.boolean().optional().default(false).describe(INCLUDE_RAW_DESCRIPTION),
     },
-    async ({ channel_id, thread_ts, limit, cursor }) => {
-      const res = await api().conversations.replies({
-        channel: channel_id,
-        ts: thread_ts,
-        limit,
-        cursor,
-      });
-      return textResult({
-        messages: res.messages,
-        has_more: res.has_more,
-        next_cursor: res.response_metadata?.next_cursor,
-      });
-    }
+    withErrorHandling(
+      ctx.slug,
+      async ({ channel_id, thread_ts, limit, cursor, include_raw }) => {
+        validateChannelId(channel_id);
+        validateTs(thread_ts, "thread_ts");
+        const clampedLimit = clampLimit(limit, { max: 200, field: "limit" });
+        const res = await api().conversations.replies({
+          channel: channel_id,
+          ts: thread_ts,
+          limit: clampedLimit,
+          cursor,
+        });
+        const messages = res.messages ?? [];
+        return textResult({
+          messages: include_raw ? messages : pruneMessages(messages),
+          has_more: res.has_more,
+          next_cursor: res.response_metadata?.next_cursor,
+        });
+      }
+    )
   );
 
   server.tool(
@@ -83,7 +109,9 @@ export function registerConversationsTools(
         .optional()
         .describe("Thread timestamp to reply to"),
     },
-    async ({ channel_id, text, thread_ts }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts }) => {
+      validateChannelId(channel_id);
+      if (thread_ts) validateTs(thread_ts, "thread_ts");
       const res = await api().chat.postMessage({
         channel: channel_id,
         text,
@@ -95,7 +123,7 @@ export function registerConversationsTools(
         ts: res.ts,
         message: res.message,
       });
-    }
+    })
   );
 
   server.tool(
@@ -106,7 +134,9 @@ export function registerConversationsTools(
       ts: z.string().describe("Timestamp of the message to edit"),
       text: z.string().describe("New message text (supports Slack mrkdwn)"),
     },
-    async ({ channel_id, ts, text }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, ts, text }) => {
+      validateChannelId(channel_id);
+      validateTs(ts);
       const res = await api().chat.update({
         channel: channel_id,
         ts,
@@ -117,9 +147,8 @@ export function registerConversationsTools(
         channel: res.channel,
         ts: res.ts,
         message: res.message,
-        error: res.error,
       });
-    }
+    })
   );
 
   server.tool(
@@ -127,7 +156,7 @@ export function registerConversationsTools(
     "Search messages across the workspace",
     {
       query: z.string().describe("Search query (supports Slack search syntax)"),
-      count: z.number().optional().default(20).describe("Number of results"),
+      count: z.number().optional().default(20).describe("Number of results per page"),
       sort: z
         .enum(["score", "timestamp"])
         .optional()
@@ -138,19 +167,27 @@ export function registerConversationsTools(
         .optional()
         .default("desc")
         .describe("Sort direction"),
+      page: z
+        .number()
+        .optional()
+        .describe(
+          "Page number of results to return (1-indexed, default 1). search.messages paginates by page rather than cursor — use the returned 'paging' metadata to know how many pages exist."
+        ),
     },
-    async ({ query, count, sort, sort_dir }) => {
+    withErrorHandling(ctx.slug, async ({ query, count, sort, sort_dir, page }) => {
       const res = await api().search.messages({
         query,
         count,
         sort,
         sort_dir,
+        page,
       });
       return textResult({
         total: res.messages?.total,
         matches: res.messages?.matches,
+        paging: res.messages?.paging,
       });
-    }
+    })
   );
 
   server.tool(
@@ -166,38 +203,59 @@ export function registerConversationsTools(
         .number()
         .optional()
         .default(100)
-        .describe("Max channels to scan"),
+        .describe("Max channels to scan across all pages"),
     },
-    async ({ types, limit }) => {
-      const res = await api().users.conversations({
-        types,
-        limit,
-        exclude_archived: true,
-      });
+    withErrorHandling(ctx.slug, async ({ types, limit }) => {
+      const clampedLimit = clampLimit(limit, { max: 2000, field: "limit" });
 
-      const unreads = [];
-      for (const ch of res.channels || []) {
-        if (!ch.id) continue;
+      // users.conversations only returns up to `limit` per page (Slack API
+      // limit param is a per-page size, not a total), so loop the cursor
+      // until either the workspace is exhausted or we've scanned enough
+      // channels to satisfy the caller's `limit`.
+      const channels: Array<{
+        id?: string;
+        name?: string;
+        is_im?: boolean;
+        is_mpim?: boolean;
+      }> = [];
+      let cursor: string | undefined;
+      do {
+        const pageSize = Math.min(200, clampedLimit - channels.length);
+        const res = await api().users.conversations({
+          types,
+          limit: pageSize,
+          cursor,
+          exclude_archived: true,
+        });
+        channels.push(...(res.channels || []));
+        cursor = res.response_metadata?.next_cursor || undefined;
+      } while (cursor && channels.length < clampedLimit);
+
+      const channelsWithIds = channels.filter(
+        (ch): ch is typeof ch & { id: string } => !!ch.id
+      );
+
+      const unreads = await mapWithConcurrency(channelsWithIds, 8, async (ch) => {
         const info = await api().conversations.info({ channel: ch.id });
         const unreadCount =
           (info.channel as Record<string, unknown> | undefined)?.unread_count as
             | number
             | undefined ?? 0;
-        if (unreadCount > 0) {
-          unreads.push({
-            id: ch.id,
-            name: ch.name || ch.id,
-            is_im: ch.is_im,
-            is_mpim: ch.is_mpim,
-            unread_count: unreadCount,
-          });
-        }
-      }
+        return {
+          id: ch.id,
+          name: ch.name || ch.id,
+          is_im: ch.is_im,
+          is_mpim: ch.is_mpim,
+          unread_count: unreadCount,
+        };
+      });
 
       return textResult(
-        unreads.sort((a, b) => b.unread_count - a.unread_count)
+        unreads
+          .filter((u) => u.unread_count > 0)
+          .sort((a, b) => b.unread_count - a.unread_count)
       );
-    }
+    })
   );
 
   server.tool(
@@ -213,14 +271,16 @@ export function registerConversationsTools(
         .number()
         .optional()
         .default(20)
-        .describe("Max results to return"),
+        .describe("Max results to return per page"),
+      page: z
+        .number()
+        .optional()
+        .describe(
+          "Page number of results to return (1-indexed, default 1). search.messages paginates by page rather than cursor — use the returned 'paging' metadata to know how many pages exist."
+        ),
     },
-    async ({ hours, count }) => {
-      const auth = await api().auth.test();
-      const userId = auth.user_id;
-      if (!userId) {
-        return textResult({ error: "Could not determine authenticated user ID from auth.test()" });
-      }
+    withErrorHandling(ctx.slug, async ({ hours, count, page }) => {
+      const userId = await ctx.getMyUserId();
 
       // Slack search 'after:' takes YYYY-MM-DD. Compute the date floor from `hours` ago.
       const floorMs = Date.now() - hours * 3600 * 1000;
@@ -232,6 +292,7 @@ export function registerConversationsTools(
         count,
         sort: "timestamp",
         sort_dir: "desc",
+        page,
       });
 
       return textResult({
@@ -239,8 +300,9 @@ export function registerConversationsTools(
         query,
         total: res.messages?.total,
         matches: res.messages?.matches,
+        paging: res.messages?.paging,
       });
-    }
+    })
   );
 
   server.tool(
@@ -253,7 +315,7 @@ export function registerConversationsTools(
           "Comma-separated list of user IDs (1 for DM, 2+ for group DM)"
         ),
     },
-    async ({ users }) => {
+    withErrorHandling(ctx.slug, async ({ users }) => {
       const res = await api().conversations.open({
         users,
         return_im: true,
@@ -262,9 +324,8 @@ export function registerConversationsTools(
         ok: res.ok,
         channel: res.channel?.id,
         already_open: res.already_open,
-        error: res.error,
       });
-    }
+    })
   );
 
   server.tool(
@@ -274,9 +335,11 @@ export function registerConversationsTools(
       channel_id: z.string().describe("Channel ID to mark"),
       ts: z.string().describe("Timestamp to mark as read up to"),
     },
-    async ({ channel_id, ts }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, ts }) => {
+      validateChannelId(channel_id);
+      validateTs(ts);
       const res = await api().conversations.mark({ channel: channel_id, ts });
       return textResult({ ok: res.ok });
-    }
+    })
   );
 }

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
+import { withErrorHandling } from "../../utils/errors.js";
 
 export function registerReactionsTools(
   server: McpServer,
@@ -19,22 +20,14 @@ export function registerReactionsTools(
         .string()
         .describe("Emoji shortcode without surrounding colons"),
     },
-    async ({ channel_id, ts, name }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, ts, name }) => {
       const emoji = name.replace(/^:|:$/g, "");
-      try {
-        const res = await api().reactions.add({
-          channel: channel_id,
-          timestamp: ts,
-          name: emoji,
-        });
-        return textResult({ ok: res.ok });
-      } catch (err) {
-        const e = err as { data?: { error?: string }; message?: string };
-        return textResult({
-          ok: false,
-          error: e.data?.error ?? e.message ?? String(err),
-        });
-      }
-    }
+      const res = await api().reactions.add({
+        channel: channel_id,
+        timestamp: ts,
+        name: emoji,
+      });
+      return textResult({ ok: res.ok });
+    })
   );
 }

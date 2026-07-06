@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
+import { withErrorHandling } from "../../utils/errors.js";
 
 export function registerUsergroupsTools(
   server: McpServer,
@@ -24,7 +25,7 @@ export function registerUsergroupsTools(
         .default(false)
         .describe("Include disabled groups"),
     },
-    async ({ include_users, include_disabled }) => {
+    withErrorHandling(ctx.slug, async ({ include_users, include_disabled }) => {
       const res = await api().usergroups.list({
         include_users,
         include_disabled,
@@ -40,7 +41,7 @@ export function registerUsergroupsTools(
           users: g.users,
         }))
       );
-    }
+    })
   );
 
   server.tool(
@@ -55,7 +56,7 @@ export function registerUsergroupsTools(
         .optional()
         .describe("Default channel IDs for the group"),
     },
-    async ({ name, handle, description, channels }) => {
+    withErrorHandling(ctx.slug, async ({ name, handle, description, channels }) => {
       const res = await api().usergroups.create({
         name,
         handle,
@@ -63,7 +64,7 @@ export function registerUsergroupsTools(
         channels: channels?.join(","),
       });
       return textResult(res.usergroup);
-    }
+    })
   );
 
   server.tool(
@@ -79,16 +80,19 @@ export function registerUsergroupsTools(
         .optional()
         .describe("New default channel IDs"),
     },
-    async ({ usergroup_id, name, handle, description, channels }) => {
-      const res = await api().usergroups.update({
-        usergroup: usergroup_id,
-        name,
-        handle,
-        description,
-        channels: channels?.join(","),
-      });
-      return textResult(res.usergroup);
-    }
+    withErrorHandling(
+      ctx.slug,
+      async ({ usergroup_id, name, handle, description, channels }) => {
+        const res = await api().usergroups.update({
+          usergroup: usergroup_id,
+          name,
+          handle,
+          description,
+          channels: channels?.join(","),
+        });
+        return textResult(res.usergroup);
+      }
+    )
   );
 
   server.tool(
@@ -100,18 +104,22 @@ export function registerUsergroupsTools(
         .array(z.string())
         .describe("User IDs to set as the group's members (replaces all)"),
     },
-    async ({ usergroup_id, user_ids }) => {
+    withErrorHandling(ctx.slug, async ({ usergroup_id, user_ids }) => {
       const res = await api().usergroups.users.update({
         usergroup: usergroup_id,
         users: user_ids.join(","),
       });
       return textResult(res.usergroup);
-    }
+    })
   );
 
   server.tool(
     "slack_usergroups_me",
-    "List user groups the authenticated user belongs to, or join/leave a group",
+    "List user groups the authenticated user belongs to, or join/leave a group. " +
+      "Note: join/leave read the current member list, then write back the full list " +
+      "(usergroups.users.update replaces all members) — if another change to this group " +
+      "lands in between, that change can be silently overwritten. Fine for occasional " +
+      "manual use; not safe for concurrent/automated calls against the same group.",
     {
       action: z
         .enum(["list", "join", "leave"])
@@ -122,9 +130,8 @@ export function registerUsergroupsTools(
         .optional()
         .describe("Group ID (required for join/leave)"),
     },
-    async ({ action, usergroup_id }) => {
-      const authRes = await api().auth.test();
-      const myId = authRes.user_id!;
+    withErrorHandling(ctx.slug, async ({ action, usergroup_id }) => {
+      const myId = await ctx.getMyUserId();
 
       if (action === "list") {
         const groups = await api().usergroups.list({ include_users: true });
@@ -143,6 +150,7 @@ export function registerUsergroupsTools(
       if (!usergroup_id)
         return textResult({ error: "usergroup_id required for join/leave" });
 
+      // Read-modify-write race: see the tool description above.
       const group = await api().usergroups.users.list({
         usergroup: usergroup_id,
       });
@@ -159,6 +167,6 @@ export function registerUsergroupsTools(
         users: users.join(","),
       });
       return textResult(res.usergroup);
-    }
+    })
   );
 }
