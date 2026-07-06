@@ -92,6 +92,93 @@ export function pruneDraft(
   return allUnknown ? raw : pruned;
 }
 
+export interface PrunedEmojiList {
+  names: string[];
+  aliases: Record<string, string>;
+}
+
+const ALIAS_PREFIX = "alias:";
+
+// emoji.list returns a flat { name: value } map where custom emoji point to
+// an image URL and aliases point to another emoji's name as "alias:target".
+// Splitting those apart gives the model both the full set of usable names
+// and, separately, which ones just redirect to another real emoji.
+export function pruneEmojiList(
+  emoji: Record<string, string> | undefined
+): PrunedEmojiList {
+  const names: string[] = [];
+  const aliases: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(emoji ?? {})) {
+    names.push(name);
+    if (value.startsWith(ALIAS_PREFIX)) {
+      aliases[name] = value.slice(ALIAS_PREFIX.length);
+    }
+  }
+
+  return { names, aliases };
+}
+
+// Structural subsets of users.info's User (with its nested Profile) and
+// users.profile.get's Profile — any object with at least these fields works,
+// so callers don't need to import the @slack/web-api response types here.
+export interface UserInfoSource {
+  id?: string;
+  name?: string;
+  real_name?: string;
+  is_bot?: boolean;
+  is_admin?: boolean;
+  tz?: string;
+  profile?: ProfileGetSource;
+}
+
+export interface ProfileGetSource {
+  display_name?: string;
+  title?: string;
+  email?: string;
+  status_text?: string;
+  status_emoji?: string;
+}
+
+export interface MergedUserInfo {
+  id?: string;
+  name?: string;
+  real_name?: string;
+  display_name?: string;
+  title?: string;
+  email?: string;
+  tz?: string;
+  status_text?: string;
+  status_emoji?: string;
+  is_bot?: boolean;
+  is_admin?: boolean;
+}
+
+// Merges users.info + users.profile.get into the handful of fields a
+// conversation actually needs. The two calls' profile fields overlap almost
+// entirely; users.profile.get's copy wins on conflict since it's the
+// purpose-built endpoint for profile data, falling back to users.info's
+// nested profile if the profile.get call didn't return a value (e.g. a
+// missing scope or a bot user with no profile).
+export function mergeUserInfo(
+  user: UserInfoSource | undefined,
+  profile: ProfileGetSource | undefined
+): MergedUserInfo {
+  return {
+    id: user?.id,
+    name: user?.name,
+    real_name: user?.real_name,
+    display_name: profile?.display_name ?? user?.profile?.display_name,
+    title: profile?.title ?? user?.profile?.title,
+    email: profile?.email ?? user?.profile?.email,
+    tz: user?.tz,
+    status_text: profile?.status_text ?? user?.profile?.status_text,
+    status_emoji: profile?.status_emoji ?? user?.profile?.status_emoji,
+    is_bot: user?.is_bot,
+    is_admin: user?.is_admin,
+  };
+}
+
 interface RichTextLeaf {
   type?: string;
   text?: string;

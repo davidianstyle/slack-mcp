@@ -9,6 +9,7 @@ import { registerUsergroupsTools } from "./services/usergroups/index.js";
 import { registerDraftsTools } from "./services/drafts/index.js";
 import { registerReactionsTools } from "./services/reactions/index.js";
 import { registerScheduledTools } from "./services/scheduled/index.js";
+import { registerDiscoveryTools } from "./services/discovery/index.js";
 
 export function createServer(auth: SlackAuth): McpServer {
   const server = new McpServer({
@@ -28,6 +29,7 @@ export function createServer(auth: SlackAuth): McpServer {
   registerDraftsTools(server, ctx);
   registerReactionsTools(server, ctx);
   registerScheduledTools(server, ctx);
+  registerDiscoveryTools(server, ctx);
 
   return server;
 }

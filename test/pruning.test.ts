@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { pruneMessage, pruneMessages, pruneDraft } from "../src/utils/pruning.js";
+import {
+  pruneMessage,
+  pruneMessages,
+  pruneDraft,
+  pruneEmojiList,
+  mergeUserInfo,
+} from "../src/utils/pruning.js";
 
 describe("pruneMessage", () => {
   it("keeps only the compact fields", () => {
@@ -127,5 +133,102 @@ describe("pruneDraft", () => {
       text: undefined,
     });
     expect(pruned).not.toHaveProperty("unknown_field");
+  });
+});
+
+describe("pruneEmojiList", () => {
+  it("splits emoji.list's flat name->value map into names and alias targets", () => {
+    const raw = {
+      party_parrot: "https://emoji.slack-edge.com/T1/party_parrot/abc.gif",
+      partyparrot: "alias:party_parrot",
+      thumbsup_all: "alias:thumbsup",
+    };
+
+    expect(pruneEmojiList(raw)).toEqual({
+      names: ["party_parrot", "partyparrot", "thumbsup_all"],
+      aliases: {
+        partyparrot: "party_parrot",
+        thumbsup_all: "thumbsup",
+      },
+    });
+  });
+
+  it("returns an empty result for an empty or missing emoji map", () => {
+    expect(pruneEmojiList({})).toEqual({ names: [], aliases: {} });
+    expect(pruneEmojiList(undefined)).toEqual({ names: [], aliases: {} });
+  });
+
+  it("omits the aliases key content when there are no aliases", () => {
+    const pruned = pruneEmojiList({ custom_one: "https://example.com/1.png" });
+    expect(pruned.names).toEqual(["custom_one"]);
+    expect(pruned.aliases).toEqual({});
+  });
+});
+
+describe("mergeUserInfo", () => {
+  it("prefers users.profile.get's fields, falling back to users.info's nested profile", () => {
+    const user = {
+      id: "U123",
+      name: "dchang",
+      real_name: "David Chang",
+      is_bot: false,
+      is_admin: true,
+      tz: "America/Los_Angeles",
+      profile: {
+        display_name: "david (info)",
+        title: "Engineer (info)",
+        email: "david@example.com",
+        status_text: "in a meeting",
+        status_emoji: ":calendar:",
+      },
+    };
+    const profile = {
+      display_name: "david",
+      title: "Staff Engineer",
+      email: "david@example.com",
+      status_text: "in a meeting",
+      status_emoji: ":calendar:",
+    };
+
+    expect(mergeUserInfo(user, profile)).toEqual({
+      id: "U123",
+      name: "dchang",
+      real_name: "David Chang",
+      display_name: "david",
+      title: "Staff Engineer",
+      email: "david@example.com",
+      tz: "America/Los_Angeles",
+      status_text: "in a meeting",
+      status_emoji: ":calendar:",
+      is_bot: false,
+      is_admin: true,
+    });
+  });
+
+  it("falls back to users.info's nested profile when users.profile.get returned nothing", () => {
+    const user = {
+      id: "U456",
+      profile: { display_name: "fallback-name", title: "fallback-title" },
+    };
+
+    const merged = mergeUserInfo(user, undefined);
+    expect(merged.display_name).toBe("fallback-name");
+    expect(merged.title).toBe("fallback-title");
+  });
+
+  it("handles both sources being undefined without throwing", () => {
+    expect(mergeUserInfo(undefined, undefined)).toEqual({
+      id: undefined,
+      name: undefined,
+      real_name: undefined,
+      display_name: undefined,
+      title: undefined,
+      email: undefined,
+      tz: undefined,
+      status_text: undefined,
+      status_emoji: undefined,
+      is_bot: undefined,
+      is_admin: undefined,
+    });
   });
 });
