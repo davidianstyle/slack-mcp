@@ -9,6 +9,10 @@
 export interface PruneableMessage {
   ts?: string;
   user?: string;
+  // Bot-authored messages carry bot_id (and often a display username)
+  // instead of user — without these a bot message prunes to authorless.
+  bot_id?: string;
+  username?: string;
   text?: string;
   thread_ts?: string;
   reply_count?: number;
@@ -20,6 +24,8 @@ export interface PruneableMessage {
 export interface PrunedMessage {
   ts?: string;
   user?: string;
+  bot_id?: string;
+  username?: string;
   text?: string;
   thread_ts?: string;
   reply_count?: number;
@@ -32,6 +38,8 @@ export function pruneMessage(msg: PruneableMessage): PrunedMessage {
   const pruned: PrunedMessage = {
     ts: msg.ts,
     user: msg.user,
+    bot_id: msg.bot_id,
+    username: msg.username,
     text: msg.text,
     thread_ts: msg.thread_ts,
     reply_count: msg.reply_count,

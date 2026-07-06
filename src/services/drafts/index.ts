@@ -7,6 +7,7 @@ import { BrowserApi } from "../../utils/browserApi.js";
 import { mrkdwnToBlocks } from "../../utils/mrkdwn.js";
 import { withErrorHandling } from "../../utils/errors.js";
 import { pruneDraft } from "../../utils/pruning.js";
+import { validateChannelId } from "../../utils/validate.js";
 
 const NO_BROWSER_AUTH =
   "Slack drafts require browser-session tokens. Set SLACK_XOXC_<SLUG> and SLACK_XOXD_<SLUG> in ~/.config/openbrain/.env. See ~/Code/slack-mcp/README.md for extraction steps.";
@@ -56,6 +57,7 @@ export function registerDraftsTools(
       thread_ts: z.string().optional().describe("Thread timestamp to draft a reply to"),
     },
     withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts }) => {
+      validateChannelId(channel_id);
       const api = requireBrowserApi(ctx);
       const destination: Record<string, unknown> = { channel_id };
       if (thread_ts) {
@@ -83,6 +85,7 @@ export function registerDraftsTools(
       thread_ts: z.string().optional().describe("Thread timestamp if draft is a reply"),
     },
     withErrorHandling(ctx.slug, async ({ draft_id, channel_id, text, thread_ts }) => {
+      validateChannelId(channel_id);
       const api = requireBrowserApi(ctx);
       const destination: Record<string, unknown> = { channel_id };
       if (thread_ts) {

@@ -15,6 +15,15 @@ import type { Block, KnownBlock } from "@slack/types";
 import { ValidationError, parseBlocksJson } from "./validate.js";
 import { mrkdwnToBlocks } from "./mrkdwn.js";
 
+// Shared tool-param description for the `blocks` param on every tool that
+// accepts it (add_message, edit_message, schedule_message). Tools that also
+// take a `mrkdwn` param should append their own mutual-exclusion note.
+export const BLOCKS_DESCRIPTION =
+  "Block Kit blocks as a JSON string (an array of block objects), for rich message layout beyond " +
+  "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
+  "fallback (e.g. push notifications, thread list previews). " +
+  "See https://api.slack.com/reference/block-kit/blocks.";
+
 export interface MessageContentInput {
   text: string;
   blocks?: string;

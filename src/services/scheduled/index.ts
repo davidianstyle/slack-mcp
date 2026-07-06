@@ -5,12 +5,10 @@ import { textResult } from "../../utils/formatting.js";
 import { withErrorHandling } from "../../utils/errors.js";
 import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
 import { parsePostAt } from "../../utils/postAt.js";
-import { resolveMessageContent } from "../../utils/messageContent.js";
-
-const BLOCKS_DESCRIPTION =
-  "Block Kit blocks as a JSON string (an array of block objects), for rich message layout beyond " +
-  "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
-  "fallback. See https://api.slack.com/reference/block-kit/blocks.";
+import {
+  BLOCKS_DESCRIPTION,
+  resolveMessageContent,
+} from "../../utils/messageContent.js";
 
 export function registerScheduledTools(
   server: McpServer,

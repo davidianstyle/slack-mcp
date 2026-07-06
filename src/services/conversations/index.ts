@@ -6,13 +6,13 @@ import { withErrorHandling } from "../../utils/errors.js";
 import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
 import { pruneMessages } from "../../utils/pruning.js";
 import { mapWithConcurrencySettled } from "../../utils/concurrency.js";
-import { resolveMessageContent } from "../../utils/messageContent.js";
+import {
+  BLOCKS_DESCRIPTION,
+  resolveMessageContent,
+} from "../../utils/messageContent.js";
 
-const BLOCKS_DESCRIPTION =
-  "Block Kit blocks as a JSON string (an array of block objects), for rich message layout beyond " +
-  "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
-  "fallback (e.g. push notifications, thread list previews). Mutually exclusive with mrkdwn. " +
-  "See https://api.slack.com/reference/block-kit/blocks.";
+// add/edit_message also take `mrkdwn` — note the mutual exclusion.
+const BLOCKS_WITH_MRKDWN_DESCRIPTION = `${BLOCKS_DESCRIPTION} Mutually exclusive with mrkdwn.`;
 
 const MRKDWN_DESCRIPTION =
   "Render text as Slack rich-text blocks (real bullet/ordered lists, block quotes, and fenced code " +
@@ -121,7 +121,7 @@ export function registerConversationsTools(
         .string()
         .optional()
         .describe("Thread timestamp to reply to"),
-      blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
+      blocks: z.string().optional().describe(BLOCKS_WITH_MRKDWN_DESCRIPTION),
       mrkdwn: z.boolean().optional().default(false).describe(MRKDWN_DESCRIPTION),
       unfurl_links: z
         .boolean()
@@ -163,7 +163,7 @@ export function registerConversationsTools(
       channel_id: z.string().describe("Channel ID containing the message"),
       ts: z.string().describe("Timestamp of the message to edit"),
       text: z.string().describe("New message text (supports Slack mrkdwn)"),
-      blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
+      blocks: z.string().optional().describe(BLOCKS_WITH_MRKDWN_DESCRIPTION),
       mrkdwn: z.boolean().optional().default(false).describe(MRKDWN_DESCRIPTION),
     },
     withErrorHandling(ctx.slug, async ({ channel_id, ts, text, blocks, mrkdwn }) => {
@@ -190,7 +190,11 @@ export function registerConversationsTools(
     "Search messages across the workspace",
     {
       query: z.string().describe("Search query (supports Slack search syntax)"),
-      count: z.number().optional().default(20).describe("Number of results per page"),
+      count: z
+        .number()
+        .optional()
+        .default(20)
+        .describe("Number of results per page (max 100)"),
       sort: z
         .enum(["score", "timestamp"])
         .optional()
@@ -209,9 +213,11 @@ export function registerConversationsTools(
         ),
     },
     withErrorHandling(ctx.slug, async ({ query, count, sort, sort_dir, page }) => {
+      // search.messages documents count as 1-100.
+      const clampedCount = clampLimit(count, { max: 100, field: "count" });
       const res = await api().search.messages({
         query,
-        count,
+        count: clampedCount,
         sort,
         sort_dir,
         page,
@@ -319,7 +325,7 @@ export function registerConversationsTools(
         .number()
         .optional()
         .default(20)
-        .describe("Max results to return per page"),
+        .describe("Max results to return per page (max 100)"),
       page: z
         .number()
         .optional()
@@ -328,6 +334,8 @@ export function registerConversationsTools(
         ),
     },
     withErrorHandling(ctx.slug, async ({ hours, count, page }) => {
+      // search.messages documents count as 1-100.
+      const clampedCount = clampLimit(count, { max: 100, field: "count" });
       const userId = await ctx.getMyUserId();
 
       // Slack search 'after:' takes YYYY-MM-DD. Compute the date floor from `hours` ago.
@@ -337,7 +345,7 @@ export function registerConversationsTools(
 
       const res = await api().search.messages({
         query,
-        count,
+        count: clampedCount,
         sort: "timestamp",
         sort_dir: "desc",
         page,

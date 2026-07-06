@@ -27,7 +27,7 @@ export function registerChannelsTools(
         .number()
         .optional()
         .default(100)
-        .describe("Max channels to return"),
+        .describe("Max channels to return per page (max 999)"),
       cursor: z.string().optional().describe("Pagination cursor"),
       exclude_archived: z
         .boolean()
@@ -45,17 +45,20 @@ export function registerChannelsTools(
     withErrorHandling(
       ctx.slug,
       async ({ types, limit, cursor, exclude_archived, scope }) => {
+        // Both conversations.list and users.conversations document limit as
+        // "must be an integer under 1000".
+        const clampedLimit = clampLimit(limit, { max: 999, field: "limit" });
         const res =
           scope === "all"
             ? await api().conversations.list({
                 types,
-                limit,
+                limit: clampedLimit,
                 cursor,
                 exclude_archived,
               })
             : await api().users.conversations({
                 types,
-                limit,
+                limit: clampedLimit,
                 cursor,
                 exclude_archived,
               });

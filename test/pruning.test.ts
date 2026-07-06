@@ -74,6 +74,20 @@ describe("pruneMessage", () => {
     const pruned = pruneMessages([{ ts: "1" }, { ts: "2" }]);
     expect(pruned.map((m) => m.ts)).toEqual(["1", "2"]);
   });
+
+  it("keeps bot_id and username so bot messages aren't authorless", () => {
+    const pruned = pruneMessage({
+      ts: "1234567890.123456",
+      text: "deploy finished",
+      subtype: "bot_message",
+      bot_id: "B0123456",
+      username: "deploybot",
+    });
+
+    expect(pruned.bot_id).toBe("B0123456");
+    expect(pruned.username).toBe("deploybot");
+    expect(pruned.user).toBeUndefined();
+  });
 });
 
 describe("pruneDraft", () => {
