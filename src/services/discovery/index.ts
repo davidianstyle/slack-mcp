@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
 import { withErrorHandling } from "../../utils/errors.js";
-import { validateChannelId, validateTs } from "../../utils/validate.js";
+import { validateChannelId, validateUserId, validateTs } from "../../utils/validate.js";
 import { memoizeWithTtl } from "../../utils/ttlCache.js";
 import { pruneEmojiList, mergeUserInfo } from "../../utils/pruning.js";
 
@@ -24,7 +24,9 @@ export function registerDiscoveryTools(
   server.tool(
     "slack_emoji_list",
     "List custom emoji available in this workspace — real names and alias targets — so you " +
-      "can pick an emoji that actually exists instead of guessing when reacting or messaging.",
+      "can pick an emoji that actually exists instead of guessing when reacting or messaging. " +
+      "The list is cached for the lifetime of this server process, so custom emoji added " +
+      "mid-session only appear after a restart.",
     {},
     withErrorHandling(ctx.slug, async () => {
       return textResult(await getEmojiList());
@@ -38,7 +40,7 @@ export function registerDiscoveryTools(
       user_id: z.string().describe("User ID to look up"),
     },
     withErrorHandling(ctx.slug, async ({ user_id }) => {
-      validateChannelId(user_id);
+      validateUserId(user_id);
       const [infoRes, profileRes] = await Promise.all([
         api().users.info({ user: user_id }),
         api().users.profile.get({ user: user_id }),

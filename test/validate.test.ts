@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ValidationError,
   validateChannelId,
+  validateUserId,
   validateTs,
   clampLimit,
 } from "../src/utils/validate.js";
@@ -35,6 +36,47 @@ describe("validateChannelId", () => {
 
   it("rejects lowercase IDs", () => {
     expect(() => validateChannelId("c0123456")).toThrow(ValidationError);
+  });
+});
+
+describe("validateUserId", () => {
+  it("accepts classic U-prefixed user IDs", () => {
+    expect(validateUserId("U0123456")).toBe("U0123456");
+  });
+
+  it("accepts W-prefixed Enterprise Grid user IDs", () => {
+    expect(validateUserId("W0123456789")).toBe("W0123456789");
+  });
+
+  it("rejects a channel ID with an error message about user IDs", () => {
+    expect(() => validateUserId("C0123456")).toThrow(ValidationError);
+    try {
+      validateUserId("C0123456");
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as Error).message).toMatch(/user ID/);
+      expect((err as Error).message).not.toMatch(/channel ID/);
+    }
+  });
+
+  it("rejects an @handle with a friendly hint to look the user up", () => {
+    expect(() => validateUserId("@david")).toThrow(ValidationError);
+    try {
+      validateUserId("@david");
+      throw new Error("expected throw");
+    } catch (err) {
+      expect((err as Error).message).toMatch(/slack_users_search/);
+    }
+  });
+
+  it("rejects an empty string and lowercase IDs", () => {
+    expect(() => validateUserId("")).toThrow(ValidationError);
+    expect(() => validateUserId("u0123456")).toThrow(ValidationError);
+  });
+
+  it("rejects an ID that's too short", () => {
+    expect(() => validateUserId("U123")).toThrow(ValidationError);
   });
 });
 

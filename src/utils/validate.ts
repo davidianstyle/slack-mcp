@@ -15,6 +15,10 @@ export class ValidationError extends Error {
 // chars total; 7+ is accepted to stay permissive for older/short IDs.
 const CHANNEL_ID_RE = /^[CDGU][A-Z0-9]{6,}$/;
 
+// Slack user IDs: U (classic) or W (Enterprise Grid) followed by the same
+// uppercase alphanumeric suffix as conversation IDs.
+const USER_ID_RE = /^[UW][A-Z0-9]{6,}$/;
+
 // Slack message timestamps: <unix seconds>.<6-digit fractional part>.
 const TS_RE = /^\d{10}\.\d{6}$/;
 
@@ -23,6 +27,17 @@ export function validateChannelId(id: string): string {
     throw new ValidationError(
       `"${id}" doesn't look like a Slack channel ID (expected something like "C0123456789"). ` +
         `If you have a channel name (e.g. "#general"), use slack_channels_list to find its ID first.`
+    );
+  }
+  return id;
+}
+
+export function validateUserId(id: string): string {
+  if (!USER_ID_RE.test(id)) {
+    throw new ValidationError(
+      `"${id}" doesn't look like a Slack user ID (expected something like "U0123456789", or ` +
+        `"W0123456789" on Enterprise Grid). If you have a name or @handle, use ` +
+        `slack_users_search to find the user's ID first.`
     );
   }
   return id;
