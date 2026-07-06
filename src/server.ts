@@ -14,6 +14,8 @@ import { registerRemindersTools } from "./services/reminders/index.js";
 import { registerStatusTools } from "./services/status/index.js";
 import { registerPinsTools } from "./services/pins/index.js";
 import { registerBookmarksTools } from "./services/bookmarks/index.js";
+import { registerFilesTools } from "./services/files/index.js";
+import { registerCanvasTools } from "./services/canvas/index.js";
 
 export function createServer(auth: SlackAuth): McpServer {
   const server = new McpServer({
@@ -38,6 +40,8 @@ export function createServer(auth: SlackAuth): McpServer {
   registerStatusTools(server, ctx);
   registerPinsTools(server, ctx);
   registerBookmarksTools(server, ctx);
+  registerFilesTools(server, ctx);
+  registerCanvasTools(server, ctx);
 
   return server;
 }

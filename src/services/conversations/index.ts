@@ -123,24 +123,37 @@ export function registerConversationsTools(
         .describe("Thread timestamp to reply to"),
       blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
       mrkdwn: z.boolean().optional().default(false).describe(MRKDWN_DESCRIPTION),
+      unfurl_links: z
+        .boolean()
+        .optional()
+        .describe("Enable unfurling of primarily text-based link previews. Slack default: enabled."),
+      unfurl_media: z
+        .boolean()
+        .optional()
+        .describe("Pass false to disable unfurling of media (image/video) link previews."),
     },
-    withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts, blocks, mrkdwn }) => {
-      validateChannelId(channel_id);
-      if (thread_ts) validateTs(thread_ts, "thread_ts");
-      const content = resolveMessageContent({ text, blocks, mrkdwn });
-      const res = await api().chat.postMessage({
-        channel: channel_id,
-        text: content.text,
-        thread_ts,
-        ...(content.blocks ? { blocks: content.blocks } : {}),
-      });
-      return textResult({
-        ok: res.ok,
-        channel: res.channel,
-        ts: res.ts,
-        message: res.message,
-      });
-    })
+    withErrorHandling(
+      ctx.slug,
+      async ({ channel_id, text, thread_ts, blocks, mrkdwn, unfurl_links, unfurl_media }) => {
+        validateChannelId(channel_id);
+        if (thread_ts) validateTs(thread_ts, "thread_ts");
+        const content = resolveMessageContent({ text, blocks, mrkdwn });
+        const res = await api().chat.postMessage({
+          channel: channel_id,
+          text: content.text,
+          thread_ts,
+          unfurl_links,
+          unfurl_media,
+          ...(content.blocks ? { blocks: content.blocks } : {}),
+        });
+        return textResult({
+          ok: res.ok,
+          channel: res.channel,
+          ts: res.ts,
+          message: res.message,
+        });
+      }
+    )
   );
 
   server.tool(

@@ -378,3 +378,93 @@ export function pruneBookmark(bookmark: BookmarkSource): PrunedBookmark {
 export function pruneBookmarks(bookmarks: readonly BookmarkSource[]): PrunedBookmark[] {
   return bookmarks.map(pruneBookmark);
 }
+
+// Structural subset of conversations.info's Channel response.
+export interface ChannelInfoSource {
+  id?: string;
+  name?: string;
+  is_private?: boolean;
+  is_archived?: boolean;
+  is_member?: boolean;
+  is_general?: boolean;
+  is_im?: boolean;
+  is_mpim?: boolean;
+  num_members?: number;
+  created?: number;
+  creator?: string;
+  topic?: { value?: string };
+  purpose?: { value?: string };
+}
+
+export interface PrunedChannelInfo {
+  id?: string;
+  name?: string;
+  is_private?: boolean;
+  is_archived?: boolean;
+  is_member?: boolean;
+  is_general?: boolean;
+  is_im?: boolean;
+  is_mpim?: boolean;
+  num_members?: number;
+  created?: number;
+  creator?: string;
+  topic?: string;
+  purpose?: string;
+}
+
+export function pruneChannelInfo(channel: ChannelInfoSource): PrunedChannelInfo {
+  return {
+    id: channel.id,
+    name: channel.name,
+    is_private: channel.is_private,
+    is_archived: channel.is_archived,
+    is_member: channel.is_member,
+    is_general: channel.is_general,
+    is_im: channel.is_im,
+    is_mpim: channel.is_mpim,
+    num_members: channel.num_members,
+    created: channel.created,
+    creator: channel.creator,
+    topic: channel.topic?.value,
+    purpose: channel.purpose?.value,
+  };
+}
+
+// Structural subset of the File objects nested inside files.uploadV2's
+// response (itself an array of files.completeUploadExternal-shaped groups,
+// each with its own nested `files` array — see file-upload.d.ts).
+export interface UploadedFileSource {
+  id?: string;
+  name?: string;
+  title?: string;
+  filetype?: string;
+  mimetype?: string;
+  size?: number;
+  permalink?: string;
+}
+
+export interface PrunedUploadedFile {
+  id?: string;
+  name?: string;
+  title?: string;
+  filetype?: string;
+  mimetype?: string;
+  size?: number;
+  permalink?: string;
+}
+
+export function pruneUploadedFile(file: UploadedFileSource): PrunedUploadedFile {
+  return {
+    id: file.id,
+    name: file.name,
+    title: file.title,
+    filetype: file.filetype,
+    mimetype: file.mimetype,
+    size: file.size,
+    permalink: file.permalink,
+  };
+}
+
+export function pruneUploadedFiles(files: readonly UploadedFileSource[]): PrunedUploadedFile[] {
+  return files.map(pruneUploadedFile);
+}

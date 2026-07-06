@@ -11,6 +11,9 @@ import {
   prunePinnedItems,
   pruneBookmark,
   pruneBookmarks,
+  pruneChannelInfo,
+  pruneUploadedFile,
+  pruneUploadedFiles,
 } from "../src/utils/pruning.js";
 
 describe("pruneMessage", () => {
@@ -382,5 +385,81 @@ describe("pruneBookmark", () => {
   it("pruneBookmarks maps over an array preserving order", () => {
     const pruned = pruneBookmarks([{ id: "1" }, { id: "2" }]);
     expect(pruned.map((b) => b.id)).toEqual(["1", "2"]);
+  });
+});
+
+describe("pruneChannelInfo", () => {
+  it("flattens topic/purpose to their string value and keeps the compact fields", () => {
+    const raw = {
+      id: "C1",
+      name: "general",
+      is_private: false,
+      is_archived: false,
+      is_member: true,
+      is_general: true,
+      is_im: false,
+      is_mpim: false,
+      num_members: 42,
+      created: 1700000000,
+      creator: "U1",
+      topic: { value: "the topic", creator: "U1", last_set: 1 },
+      purpose: { value: "the purpose", creator: "U1", last_set: 1 },
+      // Extraneous fields a real response might carry:
+      shared_team_ids: ["T1"],
+      previous_names: ["old-name"],
+    };
+
+    expect(pruneChannelInfo(raw)).toEqual({
+      id: "C1",
+      name: "general",
+      is_private: false,
+      is_archived: false,
+      is_member: true,
+      is_general: true,
+      is_im: false,
+      is_mpim: false,
+      num_members: 42,
+      created: 1700000000,
+      creator: "U1",
+      topic: "the topic",
+      purpose: "the purpose",
+    });
+  });
+
+  it("handles missing topic/purpose without throwing", () => {
+    expect(pruneChannelInfo({ id: "C1" }).topic).toBeUndefined();
+    expect(pruneChannelInfo({ id: "C1" }).purpose).toBeUndefined();
+  });
+});
+
+describe("pruneUploadedFile", () => {
+  it("keeps the compact file fields", () => {
+    const raw = {
+      id: "F1",
+      name: "report.pdf",
+      title: "Report",
+      filetype: "pdf",
+      mimetype: "application/pdf",
+      size: 1234,
+      permalink: "https://example.com/files/F1",
+      // Extraneous fields a real response might carry:
+      url_private: "https://example.com/private/F1",
+      thumb_360: "https://example.com/thumb/F1",
+    };
+
+    expect(pruneUploadedFile(raw)).toEqual({
+      id: "F1",
+      name: "report.pdf",
+      title: "Report",
+      filetype: "pdf",
+      mimetype: "application/pdf",
+      size: 1234,
+      permalink: "https://example.com/files/F1",
+    });
+  });
+
+  it("pruneUploadedFiles maps over an array preserving order", () => {
+    const pruned = pruneUploadedFiles([{ id: "1" }, { id: "2" }]);
+    expect(pruned.map((f) => f.id)).toEqual(["1", "2"]);
   });
 });

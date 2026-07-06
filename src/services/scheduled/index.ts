@@ -35,28 +35,41 @@ export function registerScheduledTools(
         ),
       thread_ts: z.string().optional().describe("Thread timestamp to schedule a reply to"),
       blocks: z.string().optional().describe(BLOCKS_DESCRIPTION),
+      unfurl_links: z
+        .boolean()
+        .optional()
+        .describe("Enable unfurling of primarily text-based link previews. Slack default: enabled."),
+      unfurl_media: z
+        .boolean()
+        .optional()
+        .describe("Pass false to disable unfurling of media (image/video) link previews."),
     },
-    withErrorHandling(ctx.slug, async ({ channel_id, text, post_at, thread_ts, blocks }) => {
-      validateChannelId(channel_id);
-      if (thread_ts) validateTs(thread_ts, "thread_ts");
-      const epochSeconds = parsePostAt(post_at);
-      const content = resolveMessageContent({ text, blocks });
+    withErrorHandling(
+      ctx.slug,
+      async ({ channel_id, text, post_at, thread_ts, blocks, unfurl_links, unfurl_media }) => {
+        validateChannelId(channel_id);
+        if (thread_ts) validateTs(thread_ts, "thread_ts");
+        const epochSeconds = parsePostAt(post_at);
+        const content = resolveMessageContent({ text, blocks });
 
-      const res = await api().chat.scheduleMessage({
-        channel: channel_id,
-        text: content.text,
-        post_at: epochSeconds,
-        thread_ts,
-        ...(content.blocks ? { blocks: content.blocks } : {}),
-      });
+        const res = await api().chat.scheduleMessage({
+          channel: channel_id,
+          text: content.text,
+          post_at: epochSeconds,
+          thread_ts,
+          unfurl_links,
+          unfurl_media,
+          ...(content.blocks ? { blocks: content.blocks } : {}),
+        });
 
-      return textResult({
-        ok: res.ok,
-        channel: res.channel,
-        scheduled_message_id: res.scheduled_message_id,
-        post_at: res.post_at,
-      });
-    })
+        return textResult({
+          ok: res.ok,
+          channel: res.channel,
+          scheduled_message_id: res.scheduled_message_id,
+          post_at: res.post_at,
+        });
+      }
+    )
   );
 
   server.tool(

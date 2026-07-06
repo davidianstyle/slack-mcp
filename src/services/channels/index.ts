@@ -3,6 +3,8 @@ import { z } from "zod";
 import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
 import { withErrorHandling } from "../../utils/errors.js";
+import { validateChannelId, clampLimit } from "../../utils/validate.js";
+import { pruneChannelInfo } from "../../utils/pruning.js";
 
 export function registerChannelsTools(
   server: McpServer,
@@ -78,5 +80,76 @@ export function registerChannelsTools(
         });
       }
     )
+  );
+
+  server.tool(
+    "slack_channel_info",
+    "Get a channel's metadata: name, topic, purpose, membership, and member count",
+    {
+      channel_id: z.string().describe("Channel ID to look up"),
+    },
+    withErrorHandling(ctx.slug, async ({ channel_id }) => {
+      validateChannelId(channel_id);
+      const res = await api().conversations.info({
+        channel: channel_id,
+        include_num_members: true,
+      });
+      return textResult(res.channel ? pruneChannelInfo(res.channel) : {});
+    })
+  );
+
+  server.tool(
+    "slack_set_channel_topic",
+    "Set a channel's topic",
+    {
+      channel_id: z.string().describe("Channel ID to update"),
+      topic: z.string().describe("New topic (no formatting or linkification)"),
+    },
+    withErrorHandling(ctx.slug, async ({ channel_id, topic }) => {
+      validateChannelId(channel_id);
+      const res = await api().conversations.setTopic({ channel: channel_id, topic });
+      return textResult({ ok: res.ok, topic: res.channel?.topic?.value });
+    })
+  );
+
+  server.tool(
+    "slack_set_channel_purpose",
+    "Set a channel's purpose",
+    {
+      channel_id: z.string().describe("Channel ID to update"),
+      purpose: z.string().describe("New purpose"),
+    },
+    withErrorHandling(ctx.slug, async ({ channel_id, purpose }) => {
+      validateChannelId(channel_id);
+      const res = await api().conversations.setPurpose({ channel: channel_id, purpose });
+      return textResult({ ok: res.ok, purpose: res.channel?.purpose?.value });
+    })
+  );
+
+  server.tool(
+    "slack_list_channel_members",
+    "List the member user IDs of a channel",
+    {
+      channel_id: z.string().describe("Channel ID to list members for"),
+      limit: z
+        .number()
+        .optional()
+        .default(200)
+        .describe("Max members to return per page (max 1000)"),
+      cursor: z.string().optional().describe("Pagination cursor for the next page"),
+    },
+    withErrorHandling(ctx.slug, async ({ channel_id, limit, cursor }) => {
+      validateChannelId(channel_id);
+      const clampedLimit = clampLimit(limit, { max: 1000, field: "limit" });
+      const res = await api().conversations.members({
+        channel: channel_id,
+        limit: clampedLimit,
+        cursor,
+      });
+      return textResult({
+        members: res.members ?? [],
+        next_cursor: res.response_metadata?.next_cursor,
+      });
+    })
   );
 }
