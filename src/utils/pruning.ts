@@ -252,3 +252,129 @@ function leafToText(leaf: RichTextLeaf): string {
       return "";
   }
 }
+
+// Structural subset covering both reminders.add's and reminders.list's
+// Reminder response shapes (the SDK types them slightly differently per
+// endpoint — reminders.add's omits `channel`).
+export interface ReminderSource {
+  id?: string;
+  text?: string;
+  time?: number;
+  complete_ts?: number;
+  recurring?: boolean;
+  recurrence?: { frequency?: string; weekdays?: string[] };
+  creator?: string;
+  user?: string;
+  channel?: string;
+}
+
+export interface PrunedReminder {
+  id?: string;
+  text?: string;
+  time?: number;
+  complete_ts?: number;
+  recurring?: boolean;
+  recurrence?: { frequency?: string; weekdays?: string[] };
+  creator?: string;
+  user?: string;
+  channel?: string;
+}
+
+export function pruneReminder(reminder: ReminderSource): PrunedReminder {
+  return {
+    id: reminder.id,
+    text: reminder.text,
+    time: reminder.time,
+    complete_ts: reminder.complete_ts,
+    recurring: reminder.recurring,
+    recurrence: reminder.recurrence,
+    creator: reminder.creator,
+    user: reminder.user,
+    channel: reminder.channel,
+  };
+}
+
+export function pruneReminders(reminders: readonly ReminderSource[]): PrunedReminder[] {
+  return reminders.map(pruneReminder);
+}
+
+// pins.list's real response includes `channel` and (for message pins) a
+// nested `message` object, but @slack/web-api's PinsListResponse['Item']
+// type doesn't model either — so this is our own structural type rather
+// than an import, same reasoning as PruneableMessage above.
+export interface PinnedItemSource {
+  type?: string;
+  created?: number;
+  created_by?: string;
+  channel?: string;
+  message?: { ts?: string; text?: string; user?: string };
+  file?: { id?: string; name?: string; title?: string };
+}
+
+export interface PrunedPinnedItem {
+  type?: string;
+  created?: number;
+  created_by?: string;
+  channel?: string;
+  ts?: string;
+  text?: string;
+  file_name?: string;
+}
+
+export function prunePinnedItem(item: PinnedItemSource): PrunedPinnedItem {
+  const pruned: PrunedPinnedItem = {
+    type: item.type,
+    created: item.created,
+    created_by: item.created_by,
+    channel: item.channel,
+  };
+  if (item.message) {
+    pruned.ts = item.message.ts;
+    pruned.text = item.message.text;
+  }
+  if (item.file) {
+    pruned.file_name = item.file.name;
+  }
+  return pruned;
+}
+
+export function prunePinnedItems(items: readonly PinnedItemSource[]): PrunedPinnedItem[] {
+  return items.map(prunePinnedItem);
+}
+
+// Structural subset of bookmarks.list's Bookmark response.
+export interface BookmarkSource {
+  id?: string;
+  title?: string;
+  link?: string;
+  emoji?: string;
+  type?: string;
+  channel_id?: string;
+  date_created?: number;
+}
+
+export interface PrunedBookmark {
+  id?: string;
+  title?: string;
+  link?: string;
+  emoji?: string;
+  type?: string;
+  channel_id?: string;
+  date_created?: number;
+}
+
+export function pruneBookmark(bookmark: BookmarkSource): PrunedBookmark {
+  return {
+    id: bookmark.id,
+    title: bookmark.title,
+    link: bookmark.link,
+    emoji: bookmark.emoji,
+    type: bookmark.type,
+    channel_id: bookmark.channel_id,
+    date_created: bookmark.date_created,
+  };
+}
+
+export function pruneBookmarks(bookmarks: readonly BookmarkSource[]): PrunedBookmark[] {
+  return bookmarks.map(pruneBookmark);
+}

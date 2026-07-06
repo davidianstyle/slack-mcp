@@ -10,6 +10,10 @@ import { registerDraftsTools } from "./services/drafts/index.js";
 import { registerReactionsTools } from "./services/reactions/index.js";
 import { registerScheduledTools } from "./services/scheduled/index.js";
 import { registerDiscoveryTools } from "./services/discovery/index.js";
+import { registerRemindersTools } from "./services/reminders/index.js";
+import { registerStatusTools } from "./services/status/index.js";
+import { registerPinsTools } from "./services/pins/index.js";
+import { registerBookmarksTools } from "./services/bookmarks/index.js";
 
 export function createServer(auth: SlackAuth): McpServer {
   const server = new McpServer({
@@ -30,6 +34,10 @@ export function createServer(auth: SlackAuth): McpServer {
   registerReactionsTools(server, ctx);
   registerScheduledTools(server, ctx);
   registerDiscoveryTools(server, ctx);
+  registerRemindersTools(server, ctx);
+  registerStatusTools(server, ctx);
+  registerPinsTools(server, ctx);
+  registerBookmarksTools(server, ctx);
 
   return server;
 }

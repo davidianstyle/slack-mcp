@@ -5,6 +5,12 @@ import {
   pruneDraft,
   pruneEmojiList,
   mergeUserInfo,
+  pruneReminder,
+  pruneReminders,
+  prunePinnedItem,
+  prunePinnedItems,
+  pruneBookmark,
+  pruneBookmarks,
 } from "../src/utils/pruning.js";
 
 describe("pruneMessage", () => {
@@ -270,5 +276,111 @@ describe("mergeUserInfo", () => {
       is_bot: undefined,
       is_admin: undefined,
     });
+  });
+});
+
+describe("pruneReminder", () => {
+  it("keeps the compact reminder fields", () => {
+    const raw = {
+      id: "Rm1",
+      text: "stand up",
+      time: 1700000000,
+      complete_ts: 0,
+      recurring: true,
+      recurrence: { frequency: "daily" },
+      creator: "U1",
+      user: "U1",
+      channel: "C1",
+      // Extraneous field a real response might carry:
+      team: "T1",
+    };
+
+    expect(pruneReminder(raw)).toEqual({
+      id: "Rm1",
+      text: "stand up",
+      time: 1700000000,
+      complete_ts: 0,
+      recurring: true,
+      recurrence: { frequency: "daily" },
+      creator: "U1",
+      user: "U1",
+      channel: "C1",
+    });
+  });
+
+  it("pruneReminders maps over an array preserving order", () => {
+    const pruned = pruneReminders([{ id: "1" }, { id: "2" }]);
+    expect(pruned.map((r) => r.id)).toEqual(["1", "2"]);
+  });
+});
+
+describe("prunePinnedItem", () => {
+  it("extracts ts/text for a message pin", () => {
+    const raw = {
+      type: "message",
+      created: 123,
+      created_by: "U1",
+      channel: "C1",
+      message: { ts: "1.1", text: "hello", user: "U1" },
+    };
+
+    expect(prunePinnedItem(raw)).toEqual({
+      type: "message",
+      created: 123,
+      created_by: "U1",
+      channel: "C1",
+      ts: "1.1",
+      text: "hello",
+    });
+  });
+
+  it("extracts just the file name for a file pin", () => {
+    const raw = {
+      type: "file",
+      created: 123,
+      created_by: "U1",
+      channel: "C1",
+      file: { id: "F1", name: "report.pdf", title: "Report" },
+    };
+
+    const pruned = prunePinnedItem(raw);
+    expect(pruned.file_name).toBe("report.pdf");
+    expect(pruned).not.toHaveProperty("ts");
+  });
+
+  it("prunePinnedItems maps over an array preserving order", () => {
+    const pruned = prunePinnedItems([{ type: "message" }, { type: "file" }]);
+    expect(pruned.map((p) => p.type)).toEqual(["message", "file"]);
+  });
+});
+
+describe("pruneBookmark", () => {
+  it("keeps the compact bookmark fields", () => {
+    const raw = {
+      id: "Bk1",
+      title: "Runbook",
+      link: "https://example.com/runbook",
+      emoji: ":book:",
+      type: "link",
+      channel_id: "C1",
+      date_created: 1700000000,
+      // Extraneous field a real response might carry:
+      last_updated_by_user_id: "U9",
+    };
+
+    expect(pruneBookmark(raw)).toEqual({
+      id: "Bk1",
+      title: "Runbook",
+      link: "https://example.com/runbook",
+      emoji: ":book:",
+      type: "link",
+      channel_id: "C1",
+      date_created: 1700000000,
+    });
+  });
+
+  it("pruneBookmarks maps over an array preserving order", () => {
+    const pruned = pruneBookmarks([{ id: "1" }, { id: "2" }]);
+    expect(pruned.map((b) => b.id)).toEqual(["1", "2"]);
   });
 });
