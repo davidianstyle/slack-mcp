@@ -5,6 +5,9 @@ import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
 import { BrowserApi } from "../../utils/browserApi.js";
 import { mrkdwnToBlocks } from "../../utils/mrkdwn.js";
+import { withErrorHandling } from "../../utils/errors.js";
+import { pruneDraft } from "../../utils/pruning.js";
+import { validateChannelId } from "../../utils/validate.js";
 
 const NO_BROWSER_AUTH =
   "Slack drafts require browser-session tokens. Set SLACK_XOXC_<SLUG> and SLACK_XOXD_<SLUG> in ~/.config/openbrain/.env. See ~/Code/slack-mcp/README.md for extraction steps.";
@@ -20,16 +23,29 @@ export function registerDraftsTools(
 ): void {
   server.tool(
     "slack_drafts_list",
-    "List draft messages saved in Slack",
+    "List draft messages saved in Slack. Drafts are pruned to a compact shape (id, last_updated_ts, destination, text) — best-effort, since drafts.list is an undocumented Slack endpoint; pass include_raw: true for the full payload. Drafts whose shape isn't recognized are returned raw automatically.",
     {
       count: z.number().optional().default(20).describe("Number of drafts to return"),
       cursor: z.string().optional().describe("Pagination cursor for next page"),
+      include_raw: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Return full, unpruned draft objects instead of the compact default"),
     },
-    async ({ count, cursor }) => {
+    withErrorHandling(ctx.slug, async ({ count, cursor, include_raw }) => {
       const api = requireBrowserApi(ctx);
       const res = await api("drafts.list", { count, cursor });
-      return textResult(res);
-    }
+      // drafts.list is an undocumented internal endpoint — if the response
+      // doesn't have the `drafts` array we expect, fall back to returning it
+      // unpruned rather than silently dropping data. (pruneDraft has its own
+      // per-draft raw fallback for unrecognized item shapes.)
+      if (include_raw || !Array.isArray(res.drafts)) return textResult(res);
+      return textResult({
+        ...res,
+        drafts: res.drafts.map((d) => pruneDraft(d as Record<string, unknown>)),
+      });
+    })
   );
 
   server.tool(
@@ -40,7 +56,8 @@ export function registerDraftsTools(
       text: z.string().describe("Draft message text (Slack mrkdwn — *bold*, `code`, <url|link>, etc.)"),
       thread_ts: z.string().optional().describe("Thread timestamp to draft a reply to"),
     },
-    async ({ channel_id, text, thread_ts }) => {
+    withErrorHandling(ctx.slug, async ({ channel_id, text, thread_ts }) => {
+      validateChannelId(channel_id);
       const api = requireBrowserApi(ctx);
       const destination: Record<string, unknown> = { channel_id };
       if (thread_ts) {
@@ -55,7 +72,7 @@ export function registerDraftsTools(
         is_from_composer: false,
       });
       return textResult(res);
-    }
+    })
   );
 
   server.tool(
@@ -67,7 +84,8 @@ export function registerDraftsTools(
       text: z.string().describe("Updated draft text (Slack mrkdwn)"),
       thread_ts: z.string().optional().describe("Thread timestamp if draft is a reply"),
     },
-    async ({ draft_id, channel_id, text, thread_ts }) => {
+    withErrorHandling(ctx.slug, async ({ draft_id, channel_id, text, thread_ts }) => {
+      validateChannelId(channel_id);
       const api = requireBrowserApi(ctx);
       const destination: Record<string, unknown> = { channel_id };
       if (thread_ts) {
@@ -81,7 +99,7 @@ export function registerDraftsTools(
         file_ids: "[]",
       });
       return textResult(res);
-    }
+    })
   );
 
   server.tool(
@@ -90,7 +108,7 @@ export function registerDraftsTools(
     {
       draft_id: z.string().describe("ID of the draft to delete (from slack_drafts_list)"),
     },
-    async ({ draft_id }) => {
+    withErrorHandling(ctx.slug, async ({ draft_id }) => {
       const api = requireBrowserApi(ctx);
       // Slack expects client_last_updated_ts to be the *current* epoch time
       // the client is performing the delete, not the draft's stored
@@ -101,6 +119,6 @@ export function registerDraftsTools(
         client_last_updated_ts: nowTs,
       });
       return textResult(res);
-    }
+    })
   );
 }
