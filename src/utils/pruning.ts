@@ -66,18 +66,30 @@ export interface PrunedDraft {
 // request shape: drafts.create/editMessage send `destinations` and
 // `blocks` (see services/drafts/index.ts), and the drafts.delete handler's
 // comment confirms the draft's own timestamp field is `last_updated_ts`.
-// If a live workspace's response uses different keys, these will simply
-// come back `undefined` rather than throw.
-export function pruneDraft(raw: Record<string, unknown>): PrunedDraft {
+// If a live workspace's response uses entirely different keys, pruning
+// would reduce every draft to all-undefined fields — output that looks
+// successful but is empty. To guard against that, a draft where no known
+// field matched is returned raw instead of pruned.
+export function pruneDraft(
+  raw: Record<string, unknown>
+): PrunedDraft | Record<string, unknown> {
   const destinations = raw.destinations;
   const destination = Array.isArray(destinations) ? destinations[0] : destinations;
 
-  return {
+  const pruned: PrunedDraft = {
     id: raw.id,
     last_updated_ts: raw.last_updated_ts,
     destination,
     text: blocksToText(raw.blocks),
   };
+
+  const allUnknown =
+    pruned.id === undefined &&
+    pruned.last_updated_ts === undefined &&
+    pruned.destination === undefined &&
+    pruned.text === undefined;
+
+  return allUnknown ? raw : pruned;
 }
 
 interface RichTextLeaf {

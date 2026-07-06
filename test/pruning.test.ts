@@ -109,4 +109,23 @@ describe("pruneDraft", () => {
     const pruned = pruneDraft({ id: "draft-4", destinations: { channel_id: "C1" } });
     expect(pruned.destination).toEqual({ channel_id: "C1" });
   });
+
+  it("falls back to the raw draft when none of the known fields are present", () => {
+    // drafts.list is undocumented — if Slack's real field names differ from
+    // our inferred ones, pruning every field to undefined would silently
+    // destroy the output. Unknown shapes must pass through unchanged.
+    const raw = { draft_uuid: "abc", ts_updated: "123", body: "hello" };
+    expect(pruneDraft(raw)).toBe(raw);
+  });
+
+  it("still prunes when at least one known field is present", () => {
+    const pruned = pruneDraft({ id: "draft-5", unknown_field: "x" });
+    expect(pruned).toEqual({
+      id: "draft-5",
+      last_updated_ts: undefined,
+      destination: undefined,
+      text: undefined,
+    });
+    expect(pruned).not.toHaveProperty("unknown_field");
+  });
 });

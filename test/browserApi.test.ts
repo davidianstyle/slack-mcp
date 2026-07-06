@@ -10,6 +10,7 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("createBrowserApi", () => {
@@ -69,7 +70,35 @@ describe("createBrowserApi", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("caps the 429 wait even if Retry-After is very large, and gives up after one retry", async () => {
+  it("caps the 429 wait at 10s even when Retry-After asks for much longer", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("", { status: 429, headers: { "Retry-After": "3600" } })
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true, drafts: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = createBrowserApi("xoxc-token", "xoxd-token");
+    const promise = api("drafts.list", {});
+
+    // Let the first fetch resolve and the handler reach the wait.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Just before the 10s cap, the retry hasn't fired yet...
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // ...and at exactly the cap it fires — 10s, not the 3600s requested.
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await expect(promise).resolves.toEqual({ ok: true, drafts: [] });
+  });
+
+  it("gives up after a second consecutive 429 instead of retrying again", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(

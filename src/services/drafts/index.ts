@@ -22,18 +22,24 @@ export function registerDraftsTools(
 ): void {
   server.tool(
     "slack_drafts_list",
-    "List draft messages saved in Slack",
+    "List draft messages saved in Slack. Drafts are pruned to a compact shape (id, last_updated_ts, destination, text) — best-effort, since drafts.list is an undocumented Slack endpoint; pass include_raw: true for the full payload. Drafts whose shape isn't recognized are returned raw automatically.",
     {
       count: z.number().optional().default(20).describe("Number of drafts to return"),
       cursor: z.string().optional().describe("Pagination cursor for next page"),
+      include_raw: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Return full, unpruned draft objects instead of the compact default"),
     },
-    withErrorHandling(ctx.slug, async ({ count, cursor }) => {
+    withErrorHandling(ctx.slug, async ({ count, cursor, include_raw }) => {
       const api = requireBrowserApi(ctx);
       const res = await api("drafts.list", { count, cursor });
       // drafts.list is an undocumented internal endpoint — if the response
       // doesn't have the `drafts` array we expect, fall back to returning it
-      // unpruned rather than silently dropping data.
-      if (!Array.isArray(res.drafts)) return textResult(res);
+      // unpruned rather than silently dropping data. (pruneDraft has its own
+      // per-draft raw fallback for unrecognized item shapes.)
+      if (include_raw || !Array.isArray(res.drafts)) return textResult(res);
       return textResult({
         ...res,
         drafts: res.drafts.map((d) => pruneDraft(d as Record<string, unknown>)),

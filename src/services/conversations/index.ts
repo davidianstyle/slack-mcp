@@ -227,8 +227,12 @@ export function registerConversationsTools(
           cursor,
           exclude_archived: true,
         });
-        channels.push(...(res.channels || []));
+        const page = res.channels || [];
+        channels.push(...page);
         cursor = res.response_metadata?.next_cursor || undefined;
+        // Guard against a degenerate response (empty page with a truthy
+        // next_cursor) spinning this loop forever.
+        if (page.length === 0) break;
       } while (cursor && channels.length < clampedLimit);
 
       const channelsWithIds = channels.filter(
