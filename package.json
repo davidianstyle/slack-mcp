@@ -1,7 +1,7 @@
 {
   "name": "slack-mcp",
   "version": "0.1.0",
-  "description": "Slack MCP server for Claude Code — channels, messages, users, and usergroups via xoxp tokens.",
+  "description": "Slack MCP server for Claude Code — messaging (Block Kit + rich text), threads, search, drafts, scheduled messages, reminders, status, pins, bookmarks, file upload, canvases, channels, users, and usergroups via xoxp tokens.",
   "type": "module",
   "bin": {
     "slack-mcp": "./dist/index.js"
@@ -12,7 +12,21 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "keywords": ["mcp", "slack", "channels", "messages", "usergroups"],
+  "keywords": [
+    "mcp",
+    "slack",
+    "channels",
+    "messages",
+    "usergroups",
+    "block-kit",
+    "reminders",
+    "pins",
+    "bookmarks",
+    "canvas",
+    "files",
+    "drafts",
+    "scheduled-messages"
+  ],
   "author": "David Chang",
   "license": "MIT",
   "dependencies": {

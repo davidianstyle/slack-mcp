@@ -24,3 +24,41 @@ export async function mapWithConcurrency<T, R>(
 
   return results;
 }
+
+export interface SettledMapResult<R> {
+  // Successful results only, in input order (failed items are dropped).
+  results: R[];
+  // How many items' fn calls threw.
+  skipped: number;
+  // Message of the earliest (by input order) failure, if any.
+  firstError?: string;
+}
+
+// Like mapWithConcurrency, but one item's failure doesn't reject the whole
+// batch — failures are skipped and counted instead. Used for fan-outs where
+// partial results are far more useful than all-or-nothing (e.g. one 429'd
+// conversations.info shouldn't discard every other channel's unread count).
+export async function mapWithConcurrencySettled<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<SettledMapResult<R>> {
+  const settled = await mapWithConcurrency(items, concurrency, async (item, i) => {
+    try {
+      return { ok: true as const, value: await fn(item, i) };
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  const result: SettledMapResult<R> = { results: [], skipped: 0, firstError: undefined };
+  for (const entry of settled) {
+    if (entry.ok) {
+      result.results.push(entry.value);
+    } else {
+      result.skipped++;
+      result.firstError ??= entry.error;
+    }
+  }
+  return result;
+}

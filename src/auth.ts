@@ -1,4 +1,4 @@
-import { WebClient, type RetryOptions } from "@slack/web-api";
+import { WebClient, LogLevel, type RetryOptions } from "@slack/web-api";
 import { BrowserApi, createBrowserApi } from "./utils/browserApi.js";
 import { envSlug } from "./utils/slug.js";
 
@@ -37,6 +37,12 @@ export function loadAuth(slug: string): SlackAuth {
   const client = new WebClient(xoxp, {
     retryConfig: RETRY_CONFIG,
     timeout: REQUEST_TIMEOUT_MS,
+    // This server talks JSON-RPC over stdio: anything the SDK writes to
+    // stdout corrupts the protocol stream. The default ConsoleLogger emits
+    // rate-limit notices at INFO via console.info (stdout in Node); at
+    // ERROR level only console.error (stderr) is ever used. Verified the
+    // SDK has no direct console.log/info writes outside its logger.
+    logLevel: LogLevel.ERROR,
   });
 
   const xoxc = process.env[`SLACK_XOXC_${key}`];

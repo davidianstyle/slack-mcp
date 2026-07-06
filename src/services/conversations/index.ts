@@ -5,7 +5,7 @@ import { textResult } from "../../utils/formatting.js";
 import { withErrorHandling } from "../../utils/errors.js";
 import { validateChannelId, validateTs, clampLimit } from "../../utils/validate.js";
 import { pruneMessages } from "../../utils/pruning.js";
-import { mapWithConcurrency } from "../../utils/concurrency.js";
+import { mapWithConcurrencySettled } from "../../utils/concurrency.js";
 import { resolveMessageContent } from "../../utils/messageContent.js";
 
 const BLOCKS_DESCRIPTION =
@@ -226,7 +226,9 @@ export function registerConversationsTools(
 
   server.tool(
     "slack_conversations_unreads",
-    "Get channels and DMs with unread messages",
+    "Get channels and DMs with unread messages. Channels whose info lookup fails (e.g. rate-limited) " +
+      "are skipped rather than failing the whole call — the response then includes skipped_channels " +
+      "and first_error.",
     {
       types: z
         .string()
@@ -237,10 +239,10 @@ export function registerConversationsTools(
         .number()
         .optional()
         .default(100)
-        .describe("Max channels to scan across all pages"),
+        .describe("Max channels to scan across all pages (max 1000)"),
     },
     withErrorHandling(ctx.slug, async ({ types, limit }) => {
-      const clampedLimit = clampLimit(limit, { max: 2000, field: "limit" });
+      const clampedLimit = clampLimit(limit, { max: 1000, field: "limit" });
 
       // users.conversations only returns up to `limit` per page (Slack API
       // limit param is a per-page size, not a total), so loop the cursor
@@ -273,26 +275,34 @@ export function registerConversationsTools(
         (ch): ch is typeof ch & { id: string } => !!ch.id
       );
 
-      const unreads = await mapWithConcurrency(channelsWithIds, 8, async (ch) => {
-        const info = await api().conversations.info({ channel: ch.id });
-        const unreadCount =
-          (info.channel as Record<string, unknown> | undefined)?.unread_count as
-            | number
-            | undefined ?? 0;
-        return {
-          id: ch.id,
-          name: ch.name || ch.id,
-          is_im: ch.is_im,
-          is_mpim: ch.is_mpim,
-          unread_count: unreadCount,
-        };
-      });
-
-      return textResult(
-        unreads
-          .filter((u) => u.unread_count > 0)
-          .sort((a, b) => b.unread_count - a.unread_count)
+      // Settled fan-out: one channel's conversations.info failing (e.g. a
+      // 429 that exhausts its retry budget) skips just that channel rather
+      // than discarding every other channel's result.
+      const { results, skipped, firstError } = await mapWithConcurrencySettled(
+        channelsWithIds,
+        8,
+        async (ch) => {
+          const info = await api().conversations.info({ channel: ch.id });
+          const unreadCount =
+            (info.channel as Record<string, unknown> | undefined)?.unread_count as
+              | number
+              | undefined ?? 0;
+          return {
+            id: ch.id,
+            name: ch.name || ch.id,
+            is_im: ch.is_im,
+            is_mpim: ch.is_mpim,
+            unread_count: unreadCount,
+          };
+        }
       );
+
+      return textResult({
+        unreads: results
+          .filter((u) => u.unread_count > 0)
+          .sort((a, b) => b.unread_count - a.unread_count),
+        ...(skipped > 0 ? { skipped_channels: skipped, first_error: firstError } : {}),
+      });
     })
   );
 
