@@ -5,6 +5,7 @@ import { ServiceContext } from "../../types.js";
 import { textResult } from "../../utils/formatting.js";
 import { BrowserApi } from "../../utils/browserApi.js";
 import { mrkdwnToBlocks } from "../../utils/mrkdwn.js";
+import { withSignature } from "../../utils/messageContent.js";
 import { withErrorHandling } from "../../utils/errors.js";
 import { pruneDraft } from "../../utils/pruning.js";
 import { validateChannelId } from "../../utils/validate.js";
@@ -67,7 +68,7 @@ export function registerDraftsTools(
       const res = await api("drafts.create", {
         client_msg_id: randomUUID(),
         destinations: JSON.stringify([destination]),
-        blocks: JSON.stringify(mrkdwnToBlocks(text)),
+        blocks: JSON.stringify(mrkdwnToBlocks(withSignature(text))),
         file_ids: "[]",
         is_from_composer: false,
       });
@@ -95,7 +96,7 @@ export function registerDraftsTools(
       const res = await api("drafts.editMessage", {
         draft_id,
         destinations: JSON.stringify([destination]),
-        blocks: JSON.stringify(mrkdwnToBlocks(text)),
+        blocks: JSON.stringify(mrkdwnToBlocks(withSignature(text))),
         file_ids: "[]",
       });
       return textResult(res);

@@ -11,7 +11,7 @@
 // They both ultimately set the same `blocks` field on the outgoing request,
 // so passing both is rejected rather than silently picking a winner.
 
-import type { Block, KnownBlock } from "@slack/types";
+import type { Block, ContextBlock, KnownBlock } from "@slack/types";
 import { ValidationError, parseBlocksJson } from "./validate.js";
 import { mrkdwnToBlocks } from "./mrkdwn.js";
 
@@ -23,6 +23,34 @@ export const BLOCKS_DESCRIPTION =
   "plain mrkdwn text. When both text and blocks are given, text is used only as the notification " +
   "fallback (e.g. push notifications, thread list previews). " +
   "See https://api.slack.com/reference/block-kit/blocks.";
+
+// Appended to every outgoing message. Both append paths (text suffix and
+// context block) are guarded so editing a message that already carries the
+// signature doesn't stack a second copy.
+const SIGNATURE = "_sent with Claude_";
+// Draft text round-trips through blocksToText (pruning.ts), which drops the
+// italic markers — recognize that form too so re-editing a draft doesn't stack.
+const SIGNATURE_PLAIN = "sent with Claude";
+
+export function withSignature(text: string): string {
+  const trimmed = text.trimEnd();
+  if (trimmed.endsWith(SIGNATURE) || trimmed.endsWith(SIGNATURE_PLAIN)) return text;
+  return text ? `${text}\n\n${SIGNATURE}` : SIGNATURE;
+}
+
+const SIGNATURE_BLOCK: ContextBlock = {
+  type: "context",
+  elements: [{ type: "mrkdwn", text: SIGNATURE }],
+};
+
+function isSignatureBlock(block: KnownBlock | Block): boolean {
+  return (
+    block.type === "context" &&
+    (block as ContextBlock).elements?.some(
+      (el) => el.type === "mrkdwn" && el.text === SIGNATURE
+    )
+  );
+}
 
 export interface MessageContentInput {
   text: string;
@@ -47,7 +75,13 @@ export function resolveMessageContent({
   }
 
   if (blocks) {
-    return { text, blocks: parseBlocksJson(blocks) as unknown as (KnownBlock | Block)[] };
+    // Blocks are what actually renders; text is only the notification
+    // fallback. Sign both.
+    const parsed = parseBlocksJson(blocks) as unknown as (KnownBlock | Block)[];
+    return {
+      text: withSignature(text),
+      blocks: parsed.some(isSignatureBlock) ? parsed : [...parsed, SIGNATURE_BLOCK],
+    };
   }
 
   if (mrkdwn) {
@@ -56,8 +90,9 @@ export function resolveMessageContent({
         "mrkdwn: true requires non-empty `text` to convert into rich-text blocks."
       );
     }
-    return { text, blocks: mrkdwnToBlocks(text) as unknown as (KnownBlock | Block)[] };
+    const signed = withSignature(text);
+    return { text: signed, blocks: mrkdwnToBlocks(signed) as unknown as (KnownBlock | Block)[] };
   }
 
-  return { text };
+  return { text: withSignature(text) };
 }
