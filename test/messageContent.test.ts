@@ -3,61 +3,36 @@ import { ValidationError } from "../src/utils/validate.js";
 import { resolveMessageContent } from "../src/utils/messageContent.js";
 
 describe("resolveMessageContent", () => {
-  const SIGNATURE = "_sent with Claude_";
-  const SIGNATURE_BLOCK = {
-    type: "context",
-    elements: [{ type: "mrkdwn", text: SIGNATURE }],
-  };
-
-  it("appends the signature to plain text when neither blocks nor mrkdwn is given", () => {
-    expect(resolveMessageContent({ text: "hello" })).toEqual({
-      text: `hello\n\n${SIGNATURE}`,
-    });
+  it("passes text through unchanged when neither blocks nor mrkdwn is given", () => {
+    expect(resolveMessageContent({ text: "hello" })).toEqual({ text: "hello" });
   });
 
-  it("does not stack a second signature when the text already ends with one", () => {
-    const signed = `hello\n\n${SIGNATURE}`;
-    expect(resolveMessageContent({ text: signed })).toEqual({ text: signed });
-  });
-
-  it("recognizes the marker-stripped signature from a draft round-trip", () => {
-    const stripped = "hello\n\nsent with Claude";
-    expect(resolveMessageContent({ text: stripped })).toEqual({ text: stripped });
-  });
-
-  it("parses the blocks JSON string, signing both the blocks and the text fallback", () => {
+  it("parses the blocks JSON string and keeps text as the fallback", () => {
     const blocksJson = JSON.stringify([{ type: "divider" }]);
     expect(resolveMessageContent({ text: "fallback", blocks: blocksJson })).toEqual({
-      text: `fallback\n\n${SIGNATURE}`,
-      blocks: [{ type: "divider" }, SIGNATURE_BLOCK],
+      text: "fallback",
+      blocks: [{ type: "divider" }],
     });
   });
 
-  it("does not append a second signature block when blocks already contain one", () => {
-    const blocksJson = JSON.stringify([{ type: "divider" }, SIGNATURE_BLOCK]);
-    expect(resolveMessageContent({ text: "fallback", blocks: blocksJson })).toEqual({
-      text: `fallback\n\n${SIGNATURE}`,
-      blocks: [{ type: "divider" }, SIGNATURE_BLOCK],
-    });
-  });
-
-  it("converts signed text into rich_text blocks when mrkdwn: true", () => {
+  it("converts text into rich_text blocks when mrkdwn: true", () => {
     const result = resolveMessageContent({ text: "- one\n- two", mrkdwn: true });
-    expect(result.text).toBe(`- one\n- two\n\n${SIGNATURE}`);
-    expect(result.blocks?.[0]).toMatchObject({
-      type: "rich_text",
-      elements: expect.arrayContaining([
-        {
-          type: "rich_text_list",
-          style: "bullet",
-          elements: [
-            { type: "rich_text_section", elements: [{ type: "text", text: "one" }] },
-            { type: "rich_text_section", elements: [{ type: "text", text: "two" }] },
-          ],
-        },
-      ]),
-    });
-    expect(JSON.stringify(result.blocks)).toContain("sent with Claude");
+    expect(result.text).toBe("- one\n- two");
+    expect(result.blocks).toEqual([
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_list",
+            style: "bullet",
+            elements: [
+              { type: "rich_text_section", elements: [{ type: "text", text: "one" }] },
+              { type: "rich_text_section", elements: [{ type: "text", text: "two" }] },
+            ],
+          },
+        ],
+      },
+    ]);
   });
 
   it("rejects passing both blocks and mrkdwn", () => {
